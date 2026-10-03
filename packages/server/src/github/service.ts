@@ -82,6 +82,12 @@ export class GithubService implements GithubPort {
     }
     if (i.event === "ping") return { status: 200, message: "pong" };
     if (!["issues", "pull_request", "push", "installation", "installation_repositories"].includes(i.event)) return { status: 202, message: "ignored" };
+    // GitHub redelivers when it thinks an answer was slow: a delivery that was already queued is not queued twice.
+    if (i.delivery) {
+      const seen = JSON.parse((await this.ctx.store.getMeta("gh_deliveries")) ?? "[]") as string[];
+      if (seen.includes(i.delivery)) return { status: 200, message: "duplicate" };
+      await this.ctx.store.setMeta("gh_deliveries", JSON.stringify([...seen, i.delivery].slice(-500)));
+    }
     await this.ctx.jobs.enqueue("github.webhook", { event: i.event, delivery: i.delivery, payload } satisfies WebhookJob);
     return { status: 202, message: "queued" };
   }

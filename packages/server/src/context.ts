@@ -1,4 +1,5 @@
 import { parseEnv } from "./env.js";
+import { assertWritable } from "./preflight.js";
 import { mkdir, stat, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -62,6 +63,8 @@ export interface Ctx {
   privateLlm: boolean;
   /** Live editing rooms. Attach it to the HTTP server to accept WebSocket connections. */
   collab: Collab;
+  /** Files of the vault that did not load (the last good version, or the defaults, are in use). */
+  problems: Problems;
   jobs: JobQueue;
   embedder: Embedder;
   llm: Llm | null;
@@ -104,14 +107,27 @@ export interface ContextOptions {
   keys?: KeyOptions;
 }
 
-/** Re-read a small file only when its mtime changes. */
-function cached<T>(path: string, load: () => Promise<T>, fallback: () => T): () => Promise<T> {
+/** What is wrong with the vault right now, by file. Empty when everything loads. */
+export type Problems = { config: string | null; schema: string | null };
+
+/**
+ * Re-read a small file only when its mtime changes.
+ * A file that does not parse must not take the server down or turn every request into a 500: the last good version stays
+ * in use (the defaults, if there never was one) and the problem is reported through `onProblem` until the file is fixed.
+ */
+function cached<T>(path: string, load: () => Promise<T>, fallback: () => T, onProblem: (message: string | null) => void): () => Promise<T> {
   let at = -1;
   let value: T | undefined;
   return async () => {
     const m = await stat(path).then((s) => s.mtimeMs, () => 0);
     if (value === undefined || m !== at) {
-      value = m === 0 ? fallback() : await load();
+      try {
+        value = m === 0 ? fallback() : await load();
+        onProblem(null);
+      } catch (e) {
+        value ??= fallback();
+        onProblem(e instanceof Error ? e.message : String(e));
+      }
       at = m;
     }
     return value;
@@ -122,9 +138,11 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
   const env = opts.env ?? process.env;
   const cfg = parseEnv(env);
   const root = opts.root;
+  const dataDir = opts.dataDir ?? cfg.DFL_DATA_DIR ?? join(root, ".defluance", "data");
+  await assertWritable(root, "the vault");
+  if (!cfg.DFL_DATABASE_URL) await assertWritable(dataDir, "the data folder");
   if (!existsSync(join(root, ".git"))) await initRepo(root);
 
-  const dataDir = opts.dataDir ?? cfg.DFL_DATA_DIR ?? join(root, ".defluance", "data");
   let db: Db;
   const url = cfg.DFL_DATABASE_URL;
   if (url) {
@@ -165,7 +183,8 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
   const publicUrl = cfg.DFL_PUBLIC_URL.replace(/\/$/, "");
   const defaultRole = cfg.DFL_DEFAULT_ROLE ?? null;
 
-  const getSchema = cached(join(root, SCHEMA_PATH), () => loadSchema(root), () => structuredClone(defaultSchemaFallback));
+  const problems: Problems = { config: null, schema: null };
+  const getSchema = cached(join(root, SCHEMA_PATH), () => loadSchema(root), () => structuredClone(defaultSchemaFallback), (m) => void (problems.schema = m && `.defluance/schema.yaml: ${m}`));
 
   const ctx: Ctx = {
     root,
@@ -178,11 +197,12 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
     priv,
     privateLlm: cfg.DFL_PRIVATE_LLM === "allow",
     collab: undefined as never,
+    problems,
     jobs,
     embedder: opts.embedder ?? createEmbedder(env["DFL_EMBED"], { env }),
     llm: opts.llm !== undefined ? opts.llm : createLlm(env["DFL_LLM"], { env }),
     github: opts.github ?? null,
-    getConfig: cached(join(root, CONFIG_PATH), () => loadConfig(root), () => structuredClone(defaultConfig)),
+    getConfig: cached(join(root, CONFIG_PATH), () => loadConfig(root), () => structuredClone(defaultConfig), (m) => void (problems.config = m && `.defluance/config.yaml: ${m}`)),
     getSchema,
     bot: { name: "defluance-bot", email: "bot@defluance.local" },
     sessionSecret,

@@ -26,6 +26,7 @@ export async function indexStatus(ctx: Ctx) {
     indexed_at: (await ctx.store.getMeta("indexed_at")) ?? null,
     jobs_pending: await ctx.jobs.pending(),
     jobs_failed: (await ctx.jobs.failed()).length,
+    problems: [ctx.problems.config, ctx.problems.schema].filter((p): p is string => !!p),
   };
 }
 

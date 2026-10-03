@@ -86,6 +86,7 @@ async function setup(opts: { config?: string; files?: Record<string, string> } =
   return { s, mock, send };
 }
 
+const ctxPending = (s: TestServer) => s.ctx.jobs.pending();
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const c of cleanups.splice(0)) await c();
@@ -125,6 +126,19 @@ describe("webhooks", () => {
     expect((await send("star", {})).status).toBe(202);
     const bad = await s.request("/webhooks/github", { method: "POST", headers: { "x-github-event": "issues", "x-hub-signature-256": `sha256=${createHmac("sha256", SECRET).update("nope").digest("hex")}` }, body: "nope" });
     expect(bad.status).toBe(400);
+  });
+
+  it("queues a redelivered webhook once", async () => {
+    const { s } = await track(setup());
+    const body = JSON.stringify({ action: "opened", repository: { full_name: "acme/app" }, issue: issuePayload(31) });
+    const signature = `sha256=${createHmac("sha256", SECRET).update(body).digest("hex")}`;
+    const deliver = (id: string) => s.request("/webhooks/github", { method: "POST", headers: { "x-github-event": "issues", "x-github-delivery": id, "x-hub-signature-256": signature }, body });
+    const first = await deliver("delivery-1");
+    expect([first.status, await first.text()]).toEqual([202, "queued"]);
+    const again = await deliver("delivery-1");
+    expect([again.status, await again.text()]).toEqual([200, "duplicate"]);
+    expect(await ctxPending(s)).toBe(1);
+    expect((await deliver("delivery-2")).status).toBe(202); // a different delivery is a different event
   });
 
   it("caches an issue and resolves gh: links to it with its state", async () => {

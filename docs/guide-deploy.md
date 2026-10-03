@@ -74,6 +74,12 @@ Set `DFL_EMBED` to the new model and restart. The text stays searchable by words
 
 One instance serves a team comfortably: on a 10,000-note vault the search p95 is about 30 ms, reading a note about 11 ms, indexing one changed note under 100 ms, and a full index takes about 10 seconds (`pnpm bench`). Run one writing instance. The in-memory rate limiter, the single background worker, the unlocked keys of private notes and the live editing rooms are not shared between instances: a person who unlocks a key on one instance has not unlocked it on another, and everyone editing a note must reach the same instance.
 
+## When it will not start
+
+- **"... is not writable by 1000:1000".** The folder is mounted from your machine and owned by someone else. Run the container as the owner of the folder (`--user "$(id -u):$(id -g)"`, or `user:` in the compose file) and make sure the data volume is writable by that user too, or change the folder's owner. Defluance checks this at start so that the first save does not fail deep inside git.
+- **A vault file does not parse.** A broken `.defluance/config.yaml` or `schema.yaml` does not stop the server: it keeps the last good version (the defaults on a first start), `/health` reports `degraded` with the file and the reason, and admins see a banner. Fix the file and the problem clears without a restart; `defluance validate` shows the same error.
+- **GitHub delivers a webhook twice.** The second one answers 200 `duplicate` and is not processed again.
+
 ## Upgrading
 
 Pull the new image or package and restart. Database migrations run at start. The vault format is versioned in [[vault-format]].

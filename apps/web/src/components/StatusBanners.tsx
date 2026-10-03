@@ -57,6 +57,11 @@ export function StatusBanners() {
 
   return (
     <div className="border-b bg-muted/50 text-sm">
+      {(status.problems?.length ?? 0) > 0 && (
+        <p role="alert" className="mx-auto max-w-[88rem] px-4 py-2 text-warning">
+          {t("banner.problems", { problems: (status.problems ?? []).join(" · ") })}
+        </p>
+      )}
       {status.capabilities.semantic && e.error && (
         <p role="status" className="mx-auto max-w-[88rem] px-4 py-2 text-warning">
           {t("banner.embeddingError", { error: e.error })}

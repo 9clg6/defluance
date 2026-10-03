@@ -248,6 +248,8 @@ export interface IndexStatus {
   indexed_at: string | null;
   jobs_pending: number;
   jobs_failed: number;
+  /** Vault files that did not load: the last good version, or the defaults, is in use. */
+  problems?: string[];
   pending: number;
   embedding: { running: boolean; done: number; total: number; error: string | null; pending: number };
   capabilities: Capabilities;
