@@ -1,0 +1,6 @@
+spaces:
+  - { name: produit, path: produit, repos: [acme/app] }
+  - { name: tech, path: tech, repos: [acme/app] }
+  - { name: ops, path: ops, repos: [acme/app] }
+repos: [acme/app]
+derive_status: true

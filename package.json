@@ -13,6 +13,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "pack:cli": "node scripts/pack-cli.mjs",
+    "demo": "node scripts/demo.mjs",
     "bench": "pnpm --filter @defluance/server bench"
   },
   "devDependencies": {
