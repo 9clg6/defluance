@@ -11,13 +11,15 @@ describe('reading', { tags: ['reading'], session: 'admin' }, () => {
   test('a note shows its typed links, its diagram and its unsynced GitHub objects', async ({ app, screen }) => {
     await app.open('/n/produit/auth-login/');
     await expect(screen.getByRole('heading', { name: 'Login', level: 1 })).toBeVisible();
+    await expect(screen.getByRole('image', 'Diagram')).toBeVisible();
+    // The note's own "# Login" is not repeated under the page title.
+    await expect(screen.getByRole('heading', 'Login')).toHaveCount(1);
+    // The links live in the "Links (n)" chip under the title, not in a permanent column.
+    await screen.getByRole('button', { name: /^Links \(\d+\)$/ }).tap();
     await expect(screen.getByRole('heading', 'Depends on')).toBeVisible();
     await expect(screen.getByRole('link', 'Sessions').first()).toBeVisible();
     await expect(screen.getByText('acme/app#12')).toBeVisible();
     await expect(screen.getByText('not synced')).toBeVisible();
-    await expect(screen.getByRole('image', 'Diagram')).toBeVisible();
-    // The note's own "# Login" is not repeated under the page title.
-    await expect(screen.getByRole('heading', 'Login')).toHaveCount(1);
   });
 
   test('a link in the body navigates to the note it names', async ({ app, screen, browser }) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bold, Code, FileCode, GitPullRequest, Italic, Link as LinkIcon, Link2, List, ListChecks, ListOrdered, Minus, Quote, Redo2, SquareCode, Strikethrough, Table, Undo2, Image as ImageIcon } from "lucide-react";
+import { Bold, Code, FileCode, GitPullRequest, PanelRight, Italic, Link as LinkIcon, Link2, List, ListChecks, ListOrdered, Minus, Quote, Redo2, SquareCode, Strikethrough, Table, Undo2, Image as ImageIcon } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button, Input, Select } from "@/components/ui";
 import { useT } from "@/lib/i18n";
@@ -59,7 +59,7 @@ const Sep = () => <span className="mx-0.5 h-5 w-px self-center bg-border" aria-h
  * Formatting toolbar for the editor. It only calls `actions`: every one of them is a CodeMirror transaction, so the shared
  * text (Yjs) and the undo history see ordinary edits. `active` says which formats the cursor is in.
  */
-export function EditorToolbar({ active, disabled, actions, panel, setPanel, linkUrl, preview, setPreview, suggest, linkTypes, canUpload }: {
+export function EditorToolbar({ active, disabled, actions, panel, setPanel, linkUrl, preview, setPreview, side, suggest, linkTypes, canUpload }: {
   active: ReadonlySet<Format>;
   disabled: boolean;
   actions: ToolbarActions;
@@ -69,6 +69,8 @@ export function EditorToolbar({ active, disabled, actions, panel, setPanel, link
   linkUrl: string;
   preview: boolean;
   setPreview: (v: boolean) => void;
+  /** The Preview button: the rendered note beside the editor. */
+  side?: { on: boolean; toggle: () => void };
   suggest: (q: string) => Promise<{ label: string; detail: string }[]>;
   linkTypes: string[];
   canUpload: boolean;
@@ -135,6 +137,7 @@ export function EditorToolbar({ active, disabled, actions, panel, setPanel, link
         <Tb label={t("editor.undo")} shortcut="Mod+Z" onClick={actions.undo} {...btn}><Undo2 className="size-4" aria-hidden /></Tb>
         <Tb label={t("editor.redo")} shortcut="Mod+Shift+Z" onClick={actions.redo} {...btn}><Redo2 className="size-4" aria-hidden /></Tb>
         <span className="ml-auto" />
+        {side && <Tb label={t("note.preview")} pressed={side.on} onClick={side.toggle} disabled={false}><PanelRight className="size-4" aria-hidden /></Tb>}
         <Tb label={t("editor.source")} pressed={!preview} onClick={() => setPreview(!preview)} disabled={false}><FileCode className="size-4" aria-hidden /></Tb>
       </div>
       {panel === "link" && <LinkPanel initial={linkUrl} onApply={(u) => { actions.link(u); setPanel(null); }} onClose={() => setPanel(null)} />}

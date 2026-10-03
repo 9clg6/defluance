@@ -220,7 +220,7 @@ const attachable = (f: File) => /^image\/(png|jpeg|gif|webp)$|^application\/pdf$
 
 const PREVIEW_KEY = "dfl-live-preview";
 /** Live preview is on unless the person turned it off in this browser. */
-function readPreview(): boolean {
+export function readPreview(): boolean {
   try {
     return localStorage.getItem(PREVIEW_KEY) !== "off";
   } catch {
@@ -233,7 +233,7 @@ function readPreview(): boolean {
  * Without it the editor owns the text after mount, as before. The text is Markdown all the way down: the toolbar and the
  * live preview only dispatch ordinary transactions and decorations.
  */
-export function Editor({ value, onChange, onSave, linkTypes, label, collab, readOnly = false, noteId, onError }: { noteId?: string; onError?: (e: unknown) => void; value: string; onChange: (v: string) => void; onSave: () => void; linkTypes: string[]; label: string; collab?: { text: Y.Text; awareness: Awareness }; readOnly?: boolean }) {
+export function Editor({ value, onChange, onSave, linkTypes, label, collab, readOnly = false, noteId, onError, side, onLivePreview }: { side?: { on: boolean; toggle: () => void }; onLivePreview?: (on: boolean) => void; noteId?: string; onError?: (e: unknown) => void; value: string; onChange: (v: string) => void; onSave: () => void; linkTypes: string[]; label: string; collab?: { text: Y.Text; awareness: Awareness }; readOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const { t } = useT();
   const { me } = useAuth();
@@ -253,6 +253,8 @@ export function Editor({ value, onChange, onSave, linkTypes, label, collab, read
   onSaveRef.current = onSave;
   const noteRef = useRef(noteId);
   const errorRef = useRef(onError);
+  const onLivePreviewRef = useRef(onLivePreview);
+  onLivePreviewRef.current = onLivePreview;
   noteRef.current = noteId;
   errorRef.current = onError;
 
@@ -271,6 +273,7 @@ export function Editor({ value, onChange, onSave, linkTypes, label, collab, read
   const setPreview = useCallback((on: boolean) => {
     previewRef.current = on;
     setPreviewState(on);
+    onLivePreviewRef.current?.(on);
     try {
       localStorage.setItem(PREVIEW_KEY, on ? "on" : "off");
     } catch {
@@ -440,6 +443,7 @@ export function Editor({ value, onChange, onSave, linkTypes, label, collab, read
         linkUrl={linkUrl}
         preview={preview}
         setPreview={setPreview}
+        side={side}
         suggest={suggest}
         linkTypes={linkTypes}
         canUpload={!!noteId}

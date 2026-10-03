@@ -12,6 +12,19 @@ links:
 
 You do not need to know Markdown to write a note. The editor looks like a classic text editor with a formatting toolbar. What is stored is still plain Markdown: the vault stays readable in git, and everything you do in the toolbar is an ordinary edit of that text.
 
+## Layout of a note
+
+Under the title, a row of chips holds what used to be the Actions column: the status (a small menu), Rename or move, Delete, Encrypt this note, Open GitHub issue (each appears under the same conditions as before), then **Links (n)** and **Properties**. Links opens a panel with "Links from this note" (and its Add link button) and "Linked from"; Properties opens the note's frontmatter. Escape closes a panel and puts the focus back on its chip. Below 640px the chips keep only their icon (the names stay for screen readers) and wrap onto several lines.
+
+- **Read tab**: the text has a comfortable column (about 52rem).
+- **Edit tab**: the editor takes the full width of the page (the page is wider for notes), with no column on its right.
+
+### Preview
+
+The "Preview" button at the right end of the toolbar (pressed while the preview is shown) puts the rendered note beside the editor. It is off by default, and on by default when "Markdown source" is on, since raw Markdown is easier to write with the result in view. Once you press it, your choice is remembered in this browser.
+
+A divider sits between the editor and the preview. Drag it, or focus it and use Left and Right (2% per press), Home and End (the smallest and the largest editor); double-click puts it back at 50%. Each side keeps at least 25%, and the width is remembered in this browser. Below 900px the preview goes under the editor and there is no divider. Showing, hiding or resizing the preview never reloads the editor: live editing with others goes on.
+
 ## Live preview
 
 Text is shown as it will look: headings are big, **bold** is bold, a list dash is a bullet, a task is a checkbox you can click, a link shows its text. The Markdown marks (`#`, `**`, backticks, link brackets, `>`) are hidden, except on the line your cursor is on. There the raw Markdown is shown so you can edit it normally. Move the cursor away and it is hidden again.

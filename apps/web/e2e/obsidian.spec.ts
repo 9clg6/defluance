@@ -50,6 +50,8 @@ test.describe("Obsidian syntax and attachments", () => {
       el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
     }, PNG.toString("base64"));
     await expect(editor).toContainText("![[attachments/shot-");
+    // the preview is no longer always beside the editor: open it
+    await page.getByRole("button", { name: "Preview", exact: true }).click();
     await expect(page.locator(".prose-note img")).toBeVisible();
   });
 });

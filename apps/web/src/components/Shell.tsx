@@ -109,7 +109,8 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
       </header>
       <StatusBanners />
-      <main id="main" className="mx-auto max-w-[88rem] px-4 py-6" tabIndex={-1}>
+      {/* A note gives its editor the room it needs: the page is wider than the others. */}
+      <main id="main" className={cn("mx-auto px-4 py-6", pathname.startsWith("/n/") ? "max-w-[100rem]" : "max-w-[88rem]")} tabIndex={-1}>
         {children}
       </main>
       <SearchPalette open={paletteOpen} onOpenChange={setPaletteOpen} onCreate={() => setCreateOpen(true)} />

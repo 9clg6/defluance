@@ -1,16 +1,17 @@
 "use client";
 
-import { CircleDot, FolderInput, Lock, Pencil, Save, Sparkles, Trash2, Unlock } from "lucide-react";
+import { CircleDot, FolderInput, Link2, Lock, Save, SlidersHorizontal, Sparkles, Trash2, Unlock, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentPropsWithoutRef, forwardRef, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AvatarGroup } from "@/components/arc/avatar-group/avatar-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/arc/popover/popover";
 import { Breadcrumb } from "@/components/arc/breadcrumb/breadcrumb";
 import { AddLinkDialog } from "@/components/AddLinkDialog";
 import { AskPanel } from "@/components/AskPanel";
 import { StatusBadge, TypeBadge } from "@/components/badges";
 import { CreateNote } from "@/components/CreateNote";
-import { Editor } from "@/components/Editor";
+import { Editor, readPreview } from "@/components/Editor";
 import { GenerateDialog } from "@/components/GenerateDialog";
 import { GraphView } from "@/components/GraphView";
 import { History } from "@/components/History";
@@ -18,6 +19,7 @@ import { IssueDialog } from "@/components/IssueDialog";
 import { LinksPanel } from "@/components/LinksPanel";
 import { DecryptDialog, EncryptDialog, LockedNote, PrivateBadge, RecipientsPanel } from "@/components/PrivateNote";
 import { Markdown } from "@/components/Markdown";
+import { SplitView } from "@/components/SplitView";
 import { Badge, Button, Card, Dialog, DialogContent, ErrorBox, Field, Input, Select, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
 import { useCollab } from "@/hooks/use-collab";
@@ -27,7 +29,9 @@ import { can, useAuth } from "@/lib/auth";
 import { relativeTime, splitFrontmatter, stripTitle } from "@/lib/frontmatter";
 import { replaceYText } from "@/lib/generate";
 import { useT } from "@/lib/i18n";
+import { readStoredSide, storeSide } from "@/lib/split";
 import { useToast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 import type { AuditEntry, NoteDetail, NoteLinks, Subgraph, VaultSchema, WriteResult } from "@/lib/types";
 
 type TabId = "read" | "edit" | "history" | "graph" | "ask" | "audit";
@@ -44,6 +48,15 @@ function useTab(): [TabId, (t: TabId) => void] {
   }, []);
   return [tab, set];
 }
+
+/** An action under the title: icon and label, the label giving way to the icon alone on narrow screens (the name stays for screen readers). */
+const Chip = forwardRef<HTMLButtonElement, ComponentPropsWithoutRef<typeof Button> & { icon: LucideIcon; label: string }>(({ icon: Icon, label, className, ...p }, ref) => (
+  <Button ref={ref} variant="outline" size="sm" aria-label={label} title={label} className={cn("rounded-full", className)} {...p}>
+    <Icon className="size-4" aria-hidden />
+    <span className="hidden sm:inline">{label}</span>
+  </Button>
+));
+Chip.displayName = "Chip";
 
 export function NotePage() {
   const pathname = usePathname() ?? "/n/";
@@ -91,6 +104,12 @@ function Loaded({ id }: { id: string }) {
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [addLinkOpen, setAddLinkOpen] = useState(false);
+  const [linksOpen, setLinksOpen] = useState(false);
+  const [propsOpen, setPropsOpen] = useState(false);
+  // The preview beside the editor: shown when the person chose so, else when the editor shows raw Markdown (Markdown source on).
+  const [liveOn, setLiveOn] = useState(readPreview);
+  const [sideChoice, setSideChoice] = useState(readStoredSide);
+  const sideOn = sideChoice ?? !liveOn;
   const [generate, setGenerate] = useState<{ instruction: string } | null>(null);
   const briefTaken = useRef(false);
   const brief = useSearchParams().get("generate");
@@ -294,10 +313,14 @@ function Loaded({ id }: { id: string }) {
   const tabsToShow = TABS.filter((x) => (x === "edit" ? writable && !n.locked : x === "audit" ? !!audit.data : true));
   const preview = live ? splitFrontmatter(collab.content).body : draft !== undefined ? splitFrontmatter(draft).body : n.body;
   const people = collab?.peers ?? [];
+  const toggle = () => {
+    setSideChoice(!sideOn);
+    storeSide(!sideOn);
+  };
   const flatIncoming = Object.values(links.data?.incoming ?? {}).flat().length;
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div>
       <article className="min-w-0">
         <Breadcrumb ariaLabel={t("note.breadcrumb")} items={[{ label: t("vault.root"), href: "/vault/" }, ...n.id.split("/").slice(0, -1).map((part, i, all) => ({ label: part, href: `/vault/${qs({ q: `${all.slice(0, i + 1).join("/")}/` })}` })), { label: n.id.split("/").at(-1) ?? n.id }]} />
         <header className="mb-4 mt-3">
@@ -325,6 +348,66 @@ function Loaded({ id }: { id: string }) {
           </p>
         </header>
 
+        <div role="group" aria-label={t("note.actions")} className="mb-5 flex flex-wrap items-center gap-2">
+          {writable && schema.data && !n.locked && (
+            <Select aria-label={t("note.status")} className="!h-8 !w-auto !rounded-full !px-3 !pr-8 text-xs" value={n.status ?? ""} onChange={(e) => void changeStatus(e.target.value)}>
+              {!n.status && <option value="" />}
+              {schema.data.statuses.map((s) => <option key={s} value={s}>{t(`status.${s}` as never)}</option>)}
+            </Select>
+          )}
+          {writable && (
+            <>
+              <Chip icon={FolderInput} label={t("note.rename")} onClick={() => { setNewPath(n.id); setMoveError(undefined); setRenameOpen(true); }} />
+              <Chip icon={Trash2} label={t("note.delete")} onClick={() => { setMoveError(undefined); setDeleteOpen(true); }} />
+            </>
+          )}
+          {writable && !n.private && <Chip icon={Lock} label={t("private.encryptAction")} onClick={() => setEncryptOpen(true)} />}
+          {n.private && !n.locked && (
+            <>
+              {writable && <Chip icon={Unlock} label={t("private.decryptAction")} onClick={() => setDecryptOpen(true)} />}
+              <Chip
+                icon={Lock}
+                label={t("private.lockNow")}
+                onClick={async () => {
+                  await api.post("/api/v1/keys/lock");
+                  await refreshAll();
+                }}
+              />
+            </>
+          )}
+          {can(me, "issues", n.space) && !n.private && <Chip icon={CircleDot} label={t("issue.open")} onClick={() => setIssueOpen(true)} />}
+          <Popover open={linksOpen} onOpenChange={setLinksOpen}>
+            <PopoverTrigger asChild>
+              <Chip icon={Link2} label={t("note.links", { n: flatLinks.length + flatIncoming })} />
+            </PopoverTrigger>
+            <PopoverContent aria-label={t("note.links", { n: flatLinks.length + flatIncoming })} className="!max-w-[min(28rem,calc(100vw-20px))] max-h-[70vh] w-[28rem] overflow-y-auto">
+              {links.loading && !links.data ? <Spinner label={t("loading")} /> : links.data ? <LinksPanel links={links.data} onAdd={writable && !n.locked ? () => { setLinksOpen(false); setAddLinkOpen(true); } : undefined} addHint={dirty ? t("addlink.saveFirst") : undefined} /> : links.error ? <ErrorBox>{errorMessage(links.error)}</ErrorBox> : null}
+            </PopoverContent>
+          </Popover>
+          <Popover open={propsOpen} onOpenChange={setPropsOpen}>
+            <PopoverTrigger asChild>
+              <Chip icon={SlidersHorizontal} label={t("note.properties")} />
+            </PopoverTrigger>
+            <PopoverContent aria-label={t("note.properties")} className="!max-w-[min(28rem,calc(100vw-20px))] max-h-[70vh] w-[28rem] overflow-y-auto">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                {Object.entries(n.frontmatter)
+                  .filter(([k]) => k !== "links")
+                  .map(([k, v]) => (
+                    <div key={k} className="contents">
+                      <dt className="text-muted-foreground">{k}</dt>
+                      <dd className="break-words">{typeof v === "string" ? v : JSON.stringify(v)}</dd>
+                    </div>
+                  ))}
+              </dl>
+            </PopoverContent>
+          </Popover>
+        </div>
+        {n.private && (
+          <Card className="mb-5">
+            <RecipientsPanel note={n} writable={writable} onChanged={() => void reload()} />
+          </Card>
+        )}
+
         {n.locked ? (
           <LockedNote note={n} />
         ) : (
@@ -339,7 +422,9 @@ function Loaded({ id }: { id: string }) {
           </TabsList>
 
           <TabsContent value="read" className="pt-5">
-            <Markdown source={stripTitle(n.body, n.title)} links={flatLinks} noteId={id} />
+            <div className="max-w-[52rem]">
+              <Markdown source={stripTitle(n.body, n.title)} links={flatLinks} noteId={id} />
+            </div>
           </TabsContent>
 
           <TabsContent value="edit" className="pt-5">
@@ -388,17 +473,23 @@ function Loaded({ id }: { id: string }) {
                   )}
                   <span className="text-xs text-muted-foreground">{live ? t("collab.sharedHint") : t("note.saveHint")}</span>
                 </div>
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {live ? (
-                    <Editor key="live" noteId={id} onError={(e) => toast("error", errorMessage(e))} value="" collab={{ text: collab.text, awareness: collab.awareness }} onChange={() => undefined} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} />
-                  ) : (
-                    <Editor key={editorKey} noteId={id} onError={(e) => toast("error", errorMessage(e))} value={draft ?? ""} onChange={setDraft} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} />
-                  )}
-                  <div className="min-w-0 rounded-xl border p-4">
-                    <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("note.preview")}</h2>
-                    <Markdown source={preview} links={flatLinks} noteId={id} />
-                  </div>
-                </div>
+                <SplitView
+                  main={
+                    live ? (
+                      <Editor key="live" noteId={id} onError={(e) => toast("error", errorMessage(e))} value="" collab={{ text: collab.text, awareness: collab.awareness }} onChange={() => undefined} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} side={{ on: sideOn, toggle }} onLivePreview={setLiveOn} />
+                    ) : (
+                      <Editor key={editorKey} noteId={id} onError={(e) => toast("error", errorMessage(e))} value={draft ?? ""} onChange={setDraft} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} side={{ on: sideOn, toggle }} onLivePreview={setLiveOn} />
+                    )
+                  }
+                  side={
+                    sideOn ? (
+                      <div className="min-w-0 rounded-xl border p-4">
+                        <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("note.preview")}</h2>
+                        <Markdown source={preview} links={flatLinks} noteId={id} />
+                      </div>
+                    ) : null
+                  }
+                />
               </div>
             )}
           </TabsContent>
@@ -436,95 +527,6 @@ function Loaded({ id }: { id: string }) {
         </Tabs>
         )}
       </article>
-
-      <aside className="space-y-4" aria-label={t("note.sidebar")}>
-        <Card className="space-y-3">
-          <h2 className="text-sm font-semibold">{t("note.actions")}</h2>
-          {writable && schema.data && !n.locked && (
-            <div>
-              <label htmlFor="status" className="mb-1 block text-xs text-muted-foreground">{t("note.status")}</label>
-              <Select id="status" className="w-full" value={n.status ?? ""} onChange={(e) => void changeStatus(e.target.value)}>
-                {!n.status && <option value="" />}
-                {schema.data.statuses.map((s) => <option key={s} value={s}>{t(`status.${s}` as never)}</option>)}
-              </Select>
-            </div>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {writable && !n.locked && tab !== "edit" && (
-              <Button variant="outline" size="sm" onClick={() => setTab("edit")}>
-                <Pencil className="size-4" aria-hidden />
-                {t("tab.edit")}
-              </Button>
-            )}
-            {writable && (
-              <>
-                <Button variant="outline" size="sm" onClick={() => { setNewPath(n.id); setMoveError(undefined); setRenameOpen(true); }}>
-                  <FolderInput className="size-4" aria-hidden />
-                  {t("note.rename")}
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => { setMoveError(undefined); setDeleteOpen(true); }}>
-                  <Trash2 className="size-4" aria-hidden />
-                  {t("note.delete")}
-                </Button>
-              </>
-            )}
-            {writable && !n.private && (
-              <Button variant="outline" size="sm" onClick={() => setEncryptOpen(true)}>
-                <Lock className="size-4" aria-hidden />
-                {t("private.encryptAction")}
-              </Button>
-            )}
-            {n.private && !n.locked && (
-              <>
-                {writable && (
-                  <Button variant="outline" size="sm" onClick={() => setDecryptOpen(true)}>
-                    <Unlock className="size-4" aria-hidden />
-                    {t("private.decryptAction")}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    await api.post("/api/v1/keys/lock");
-                    await refreshAll();
-                  }}
-                >
-                  <Lock className="size-4" aria-hidden />
-                  {t("private.lockNow")}
-                </Button>
-              </>
-            )}
-            {can(me, "issues", n.space) && !n.private && (
-              <Button variant="outline" size="sm" onClick={() => setIssueOpen(true)}>
-                <CircleDot className="size-4" aria-hidden />
-                {t("issue.open")}
-              </Button>
-            )}
-          </div>
-        </Card>
-        {n.private && (
-          <Card>
-            <RecipientsPanel note={n} writable={writable} onChanged={() => void reload()} />
-          </Card>
-        )}
-        <Card>
-          {links.loading && !links.data ? <Spinner label={t("loading")} /> : links.data ? <LinksPanel links={links.data} onAdd={writable && !n.locked ? () => setAddLinkOpen(true) : undefined} addHint={dirty ? t("addlink.saveFirst") : undefined} /> : links.error ? <ErrorBox>{errorMessage(links.error)}</ErrorBox> : null}
-        </Card>
-        <Card>
-          <h2 className="mb-2 text-sm font-semibold">{t("note.details")}</h2>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-            {Object.entries(n.frontmatter)
-              .filter(([k]) => k !== "links")
-              .map(([k, v]) => (
-                <div key={k} className="contents">
-                  <dt className="text-muted-foreground">{k}</dt>
-                  <dd className="break-words">{typeof v === "string" ? v : JSON.stringify(v)}</dd>
-                </div>
-              ))}
-          </dl>
-        </Card>
-      </aside>
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent title={t("note.renameTitle")} description={t("note.renameBody")} closeLabel={t("close")}>

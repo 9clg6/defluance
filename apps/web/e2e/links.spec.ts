@@ -6,6 +6,7 @@ test.describe("adding a link", () => {
 
   test("pick a note and a type: the link appears in the panel", async ({ page }) => {
     await page.goto("/n/produit/billing-invoices/");
+    await page.getByRole("button", { name: /^Links \(/ }).click();
     await page.getByRole("button", { name: "Add link" }).click();
     const dialog = page.getByRole("dialog", { name: "Add a link" });
     await dialog.getByLabel("Linked note").fill("gloss");
@@ -15,11 +16,13 @@ test.describe("adding a link", () => {
     await expectAccessible(page, "add link dialog");
     await dialog.getByRole("button", { name: "Add link" }).click();
     await expect(page.getByText("Link added")).toBeVisible();
+    await page.getByRole("button", { name: /^Links \(/ }).click();
     await expect(page.getByRole("region", { name: "Links from this note" }).getByRole("link", { name: "Glossary" })).toBeVisible();
   });
 
   test("a refused link is explained in the dialog", async ({ page }) => {
     await page.goto("/n/produit/billing-invoices/");
+    await page.getByRole("button", { name: /^Links \(/ }).click();
     await page.getByRole("button", { name: "Add link" }).click();
     const dialog = page.getByRole("dialog", { name: "Add a link" });
     await dialog.getByLabel("Linked note").fill("no/such-note");

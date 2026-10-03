@@ -60,10 +60,14 @@ test.describe("reading and searching", () => {
   test("a note shows its links grouped by type, a diagram, and unsynced GitHub objects", async ({ page }) => {
     await page.goto("/n/produit/auth-login/");
     await expect(page.getByRole("heading", { name: "Login", level: 1 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Depends on" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Sessions" }).first()).toBeVisible();
-    await expect(page.getByText("acme/app#12")).toBeVisible();
-    await expect(page.getByText("not synced")).toBeVisible();
+    // the links live in a popover under the title
+    await page.getByRole("button", { name: /^Links \(/ }).click();
+    const links = page.getByRole("dialog", { name: /^Links \(/ });
+    await expect(links.getByRole("heading", { name: "Depends on" })).toBeVisible();
+    await expect(links.getByRole("link", { name: "Sessions" }).first()).toBeVisible();
+    await expect(links.getByText("acme/app#12")).toBeVisible();
+    await expect(links.getByText("not synced")).toBeVisible();
+    await page.keyboard.press("Escape");
     await expect(page.getByRole("img", { name: "Diagram" })).toBeVisible();
     // the note's own "# Login" is not repeated under the page title
     await expect(page.getByRole("heading", { name: "Login" })).toHaveCount(1);
@@ -165,7 +169,7 @@ test.describe("editing", () => {
     await expect(page.getByRole("textbox", { name: "Markdown editor" })).toBeVisible();
   });
 
-  test("changes a note's status from the sidebar", async ({ page }) => {
+  test("changes a note's status from its chip", async ({ page }) => {
     await page.goto("/n/tech/webhooks/");
     await page.getByLabel("Status").selectOption("review");
     await expect(page.getByText("Status is now review")).toBeVisible();
