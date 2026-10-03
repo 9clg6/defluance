@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { ConflictError, type Diagnostic, type Recipient, addFrontmatterLink, addRecipient, bodyOf, encryptNote, parseNote, pushToOrigin, readAt, removeRecipient, renderTemplate, reposOf, setFrontmatterField, slugify, spaceOf, validateFields, writeAndCommit } from "@defluance/vault-core";
+import { ConflictError, type Diagnostic, type Recipient, addFrontmatterLink, applyAndCommit, frontmatterLines, isEncrypted, retargetLinks, addRecipient, bodyOf, encryptNote, parseNote, pushToOrigin, readAt, removeRecipient, renderTemplate, reposOf, setFrontmatterField, slugify, spaceOf, validateFields, writeAndCommit } from "@defluance/vault-core";
 import { type NoteRow } from "@defluance/indexer";
 import { type Actor, can } from "../auth.js";
 import { type Ctx, indexAfterWrite } from "../context.js";
@@ -279,4 +279,79 @@ export async function createIssueFromNote(ctx: Ctx, actor: Actor, id: string, in
   });
   await audit(ctx, actor, "issue.create", note.id, { key: issue.key, url: issue.url });
   return { key: issue.key, number: issue.number, url: issue.url, link: "error" in link2 ? { error: link2.error } : { commit: link2.commit, branch: link2.branch } };
+}
+
+// ---------------------------------------------------------------- delete and rename
+
+/** Delete a note. Notes that link to it keep their link, which shows as broken until somebody fixes it. */
+export async function deleteNote(ctx: Ctx, actor: Actor, id: string, input: { baseCommit?: string | undefined } = {}) {
+  if (actor.agent) throw forbidden("agents cannot delete notes: a person decides");
+  const note = await requireNote(ctx, actor, id, "write");
+  const incoming = (await ctx.store.edgesTo(note.id)).filter((e) => e.from_note !== note.id);
+  let commit: string;
+  try {
+    ({ commit } = await applyAndCommit(ctx.root, { removes: [note.path] }, { message: `delete ${note.id}`, author: authorOf(actor), ...(input.baseCommit ? { baseCommits: { [note.path]: input.baseCommit } } : {}) }));
+  } catch (e) {
+    if (e instanceof ConflictError) throw new HttpError(409, "note changed since you loaded it", { current: e.actual, expected: e.expected });
+    throw e;
+  }
+  await indexAfterWrite(ctx, [note.path]);
+  await ctx.collab.evict(note.id, "note deleted");
+  await audit(ctx, actor, "note.delete", note.id, { brokenLinks: new Set(incoming.map((e) => e.from_note)).size }, commit);
+  if ((await ctx.getConfig()).vaultPush) await pushToOrigin(ctx.root, "HEAD").catch((e: unknown) => ctx.log({ msg: "push failed", error: String(e) }));
+  return { id: note.id, commit, brokenLinks: [...new Set(incoming.map((e) => e.from_note))] };
+}
+
+/**
+ * Move or rename a note, and update the links that point at it, in one commit. A private note that links to it cannot be
+ * updated (its text is encrypted and its links are not indexed): whoever can read it has to fix the link.
+ */
+export async function renameNote(ctx: Ctx, actor: Actor, id: string, to: string) {
+  if (actor.agent) throw forbidden("agents cannot move notes: a person decides");
+  const note = await requireNote(ctx, actor, id, "write");
+  const target = safeId(to);
+  if (target === note.id) throw new HttpError(422, "that is where the note already is");
+  if (await ctx.store.getNote(target)) throw new HttpError(409, `note "${target}" already exists`);
+  const config = await ctx.getConfig();
+  const space = spaceOf(config, target);
+  if (!can(actor, "write", space)) throw forbidden(`requires "write" on space "${space}"`);
+
+  const graph = await ctx.store.graph();
+  const oldBase = note.id.split("/").at(-1) as string;
+  const newBase = target.split("/").at(-1) as string;
+  // a bare name is kept bare while it stays unambiguous; otherwise the link becomes a full path
+  const nameTaken = [...graph.nodes.keys()].some((k) => k !== note.id && k.split("/").at(-1) === newBase);
+  const edges = (await ctx.store.edgesTo(note.id)).filter((e) => e.from_note !== note.id);
+  const bySource = new Map<string, typeof edges>();
+  for (const e of edges) bySource.set(e.from_note, [...(bySource.get(e.from_note) ?? []), e]);
+
+  const writes: { path: string; content: string }[] = [];
+  const skipped: string[] = [];
+  for (const [fromId, list] of bySource) {
+    const src = graph.nodes.get(fromId);
+    const path = `${fromId}.md`;
+    if (!src || !can(actor, "write", src.space)) {
+      skipped.push(fromId);
+      continue;
+    }
+    let text = await readFile(join(ctx.root, path), "utf8").catch(() => null);
+    if (text === null || isEncrypted(text)) {
+      skipped.push(fromId);
+      continue;
+    }
+    const fm = frontmatterLines(text);
+    for (const e of list) {
+      const wasPath = e.to_ref.includes("/");
+      const replacement = wasPath || nameTaken || oldBase !== e.to_ref ? target : newBase;
+      const lines = e.source === "frontmatter" ? fm : new Set([e.line]);
+      text = retargetLinks(text, e.to_ref, replacement, lines);
+    }
+    writes.push({ path, content: text });
+  }
+  const { commit } = await applyAndCommit(ctx.root, { moves: [{ from: note.path, to: `${target}.md` }], writes }, { message: `rename ${note.id} to ${target}`, author: authorOf(actor) });
+  await indexAfterWrite(ctx, [note.path, `${target}.md`, ...writes.map((w) => w.path)]);
+  await ctx.collab.evict(note.id, "note moved");
+  await audit(ctx, actor, "note.rename", note.id, { to: target, updatedLinks: writes.map((w) => w.path), skipped }, commit);
+  if (config.vaultPush) await pushToOrigin(ctx.root, "HEAD").catch((e: unknown) => ctx.log({ msg: "push failed", error: String(e) }));
+  return { id: target, from: note.id, commit, updated: writes.map((w) => w.path.slice(0, -3)), skipped };
 }

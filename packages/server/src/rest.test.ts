@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { makeServer, note, type TestServer } from "./test-env.js";
+import { FILES, makeServer, note, type TestServer } from "./test-env.js";
 
 let s: TestServer;
 beforeAll(async () => {
@@ -349,6 +349,77 @@ describe("GET /api/v1/stats", () => {
       const narrow = await s.token(["read"], ["tech"]);
       const some = await s.call("GET", "/api/v1/stats", { token: narrow });
       expect(some.body).toEqual({ total: 1, groups: [{ type: "technical-spec", total: 1, statuses: { approved: 1 } }] });
+    } finally {
+      await s.cleanup();
+    }
+  });
+});
+
+describe("delete, rename and the vault tree", () => {
+  it("renames a note and updates the links that point at it, in one commit, leaving code samples alone", async () => {
+    const files = {
+      ...FILES,
+      "produit/refs.md": note("note", "draft", "# Refs\n\nBy path [[tech/sessions]], by name [[sessions#Sessions|the sessions]], typed [[tech/sessions|depends_on]].\n\n```\n[[tech/sessions]]\n```\n", "links:\n  - \"[[tech/sessions|related]]\"\n"),
+    };
+    const s = await makeServer({ files });
+    try {
+      const r = await s.call("POST", "/api/v1/notes/tech%2Fsessions/rename", { body: { to: "tech/auth/cookies" } });
+      expect(r.status).toBe(200);
+      expect(r.body).toMatchObject({ id: "tech/auth/cookies", from: "tech/sessions", skipped: [] });
+      expect(r.body.updated).toEqual(expect.arrayContaining(["produit/auth-login", "produit/refs"]));
+      expect(s.git("log", "--format=%s", "-1").trim()).toBe("rename tech/sessions to tech/auth/cookies");
+      expect(s.git("show", "--stat", "--format=", "HEAD")).toContain("tech/{sessions.md => auth/cookies.md}");
+
+      const refs = (await s.call("GET", "/api/v1/notes/produit%2Frefs")).body.raw as string;
+      expect(refs).toContain("By path [[tech/auth/cookies]]");
+      expect(refs).toContain("[[cookies#Sessions|the sessions]]"); // a bare name stays a bare name while it is unambiguous
+      expect(refs).toContain("[[tech/auth/cookies|depends_on]]");
+      expect(refs).toContain("\"[[tech/auth/cookies|related]]\"");
+      expect(refs).toContain("```\n[[tech/sessions]]\n```"); // inside a code block: not a link, not rewritten
+      const links = (await s.call("GET", "/api/v1/notes/produit%2Fauth-login/links")).body;
+      expect(links.outgoing["depends_on"][0]).toMatchObject({ broken: false, note: { id: "tech/auth/cookies" } });
+
+      expect((await s.call("GET", "/api/v1/notes/tech%2Fsessions")).status).toBe(404);
+      expect((await s.call("POST", "/api/v1/notes/tech%2Fauth%2Fcookies/rename", { body: { to: "readme" } })).status).toBe(409);
+      expect((await s.call("POST", "/api/v1/notes/tech%2Fauth%2Fcookies/rename", { body: { to: "../escape" } })).status).toBe(400);
+      const agent = await s.token(["read", "write"]);
+      expect((await s.call("POST", "/api/v1/notes/tech%2Fauth%2Fcookies/rename", { token: agent, body: { to: "tech/x" } })).status).toBe(403);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  it("deletes a note, says who linked to it, refuses agents and stale deletes, and drops it from search", async () => {
+    const s = await makeServer();
+    try {
+      const cur = (await s.call("GET", "/api/v1/notes/tech%2Fsessions")).body;
+      const agent = await s.token(["read", "write"]);
+      expect((await s.call("DELETE", "/api/v1/notes/tech%2Fsessions", { token: agent })).status).toBe(403);
+      const stale = await s.call("DELETE", `/api/v1/notes/tech%2Fsessions?base_commit=${"0".repeat(40)}`);
+      expect(stale.status).toBe(409);
+
+      const r = await s.call("DELETE", `/api/v1/notes/tech%2Fsessions?base_commit=${cur.commit}`);
+      expect(r.status).toBe(200);
+      expect(r.body.brokenLinks).toContain("produit/auth-login");
+      expect(s.git("log", "--format=%s", "-1").trim()).toBe("delete tech/sessions");
+      expect((await s.call("GET", "/api/v1/notes/tech%2Fsessions")).status).toBe(404);
+      expect((await s.call("GET", "/api/v1/search?q=fifteen+minutes")).body).toEqual([]);
+      const lint = (await s.call("GET", "/api/v1/graph/lint")).body;
+      expect(lint.broken.some((b: { target: string }) => b.target.includes("sessions"))).toBe(true);
+      expect((await s.call("GET", "/api/v1/audit?action=note.delete")).body[0]).toMatchObject({ target: "tech/sessions" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  it("lists every readable note for the folder tree, and only those", async () => {
+    const s = await makeServer();
+    try {
+      const all = (await s.call("GET", "/api/v1/tree")).body;
+      expect(all.truncated).toBe(false);
+      expect(all.notes.map((n: { id: string }) => n.id).sort()).toEqual(["produit/auth-login", "produit/password-reset", "readme", "secret/plans", "tech/sessions"]);
+      const narrow = await s.token(["read"], ["tech"]);
+      expect((await s.call("GET", "/api/v1/tree", { token: narrow })).body.notes.map((n: { id: string }) => n.id)).toEqual(["tech/sessions"]);
     } finally {
       await s.cleanup();
     }

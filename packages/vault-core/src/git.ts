@@ -250,3 +250,41 @@ export function deleteBranch(repo: string, branch: string): Promise<void> {
     await git(repo).raw(["branch", "-D", branch]);
   });
 }
+
+// ---------------------------------------------------------------- several files in one commit
+
+export interface Changes {
+  /** Files to create or replace. */
+  writes?: { path: string; content: string }[];
+  /** Files to move (history follows with `git mv`). */
+  moves?: { from: string; to: string }[];
+  /** Files to delete. */
+  removes?: string[];
+}
+
+/** Apply file changes together and commit them as one commit. Serialised with every other write to the repository. */
+export function applyAndCommit(repo: string, changes: Changes, opts: { message: string; author: Author; baseCommits?: Record<string, string> }): Promise<{ commit: string }> {
+  return serialized(repo, async () => {
+    const writes = (changes.writes ?? []).map((w) => ({ rel: safePath(repo, w.path), content: w.content }));
+    const moves = (changes.moves ?? []).map((m) => ({ from: safePath(repo, m.from), to: safePath(repo, m.to) }));
+    const removes = (changes.removes ?? []).map((r) => safePath(repo, r));
+    for (const [path, expected] of Object.entries(opts.baseCommits ?? {})) {
+      const current = await lastCommitFor(repo, safePath(repo, path));
+      if (current && current !== expected) throw new ConflictError(path, expected, current);
+    }
+    const g = git(repo, opts.author);
+    for (const m of moves) {
+      await mkdir(dirname(join(repo, m.to)), { recursive: true });
+      await g.raw(["mv", m.from, m.to]);
+    }
+    for (const r of removes) await g.raw(["rm", "-q", "--", r]);
+    for (const w of writes) {
+      await mkdir(dirname(join(repo, w.rel)), { recursive: true });
+      await writeFile(join(repo, w.rel), w.content, "utf8");
+      await g.add(w.rel);
+    }
+    const paths = [...writes.map((w) => w.rel), ...moves.flatMap((m) => [m.from, m.to]), ...removes];
+    await g.commit(opts.message, paths, { "--author": `${opts.author.name} <${opts.author.email}>` });
+    return { commit: await head(repo) };
+  });
+}

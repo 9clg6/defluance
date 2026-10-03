@@ -204,3 +204,10 @@ export async function noteHistory(ctx: Ctx, actor: Actor, id: string, opts: { di
   const patch = await diff(ctx.root, `${hash}^`, hash, note.path).catch(() => diff(ctx.root, EMPTY_TREE, hash, note.path));
   return { id: note.id, commit: hash, patch };
 }
+
+/** Every note the actor can read, as a flat list the UI folds into a tree. Capped: a very large vault gets the first notes. */
+export async function vaultTree(ctx: Ctx, actor: Actor) {
+  const cap = 10_000;
+  const rows = await ctx.store.listNotes({ spaces: await readSpaces(ctx, actor), limit: cap + 1 });
+  return { notes: await summaries(ctx, actor, rows.slice(0, cap)), truncated: rows.length > cap };
+}

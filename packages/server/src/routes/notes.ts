@@ -51,6 +51,18 @@ export function noteRoutes(ctx: Ctx) {
     request: { params: idParam, body: jsonBody(z.object({ add: z.array(z.string()).optional(), remove: z.array(z.string()).optional() })) }, responses: { 200: ok("Recipients"), ...errs },
   }), async (c) => c.json(await svc.setRecipients(ctx, actorOf(c), c.req.valid("param").id, c.req.valid("json")), 200));
 
+  r.openapi(createRoute({
+    method: "delete", path: "/api/v1/notes/{id}", summary: "Delete a note", tags: ["notes"],
+    description: "Committed like any change, so it can be undone from git. Notes that link to it keep a broken link; their ids are returned. Agents cannot delete.",
+    request: { params: idParam, query: z.object({ base_commit: z.string().optional() }) }, responses: { 200: ok("Deleted"), ...errs },
+  }), async (c) => c.json(await svc.deleteNote(ctx, actorOf(c), c.req.valid("param").id, { baseCommit: c.req.valid("query").base_commit }), 200));
+  r.openapi(createRoute({
+    method: "post", path: "/api/v1/notes/{id}/rename", summary: "Move or rename a note", tags: ["notes"],
+    description: "Moves the file and updates the links that point at it, in one commit. Agents cannot move notes.",
+    request: { params: idParam, body: jsonBody(z.object({ to: z.string().min(1).openapi({ description: "the new id, a path without .md" }) })) }, responses: { 200: ok("Moved"), ...errs },
+  }), async (c) => c.json(await svc.renameNote(ctx, actorOf(c), c.req.valid("param").id, c.req.valid("json").to), 200));
+  r.openapi(createRoute({ method: "get", path: "/api/v1/tree", summary: "Every readable note, to draw the vault as folders", tags: ["notes"], responses: { 200: ok("Notes"), ...errs } }), async (c) => c.json(await svc.vaultTree(ctx, actorOf(c)), 200));
+
   r.openapi(createRoute({ method: "get", path: "/api/v1/notes/{id}/links", summary: "Outgoing and incoming links, grouped by type", tags: ["notes"], request: { params: idParam }, responses: { 200: ok("Links"), ...errs } }), async (c) =>
     c.json(await svc.noteLinks(ctx, actorOf(c), c.req.valid("param").id), 200),
   );

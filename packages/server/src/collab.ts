@@ -336,6 +336,19 @@ export class Collab {
     if (fromEditor) this.scheduleDraft(room);
   }
 
+  /** The note is gone or moved: send everyone away, and forget its unsaved draft. */
+  async evict(id: string, reason: string): Promise<void> {
+    const room = this.rooms.get(id);
+    if (room) {
+      for (const t of [room.saveTimer, room.saveMax, room.unloadTimer]) if (t) clearTimeout(t);
+      for (const c of room.conns.values()) c.ws.close(4404, reason);
+      room.awareness.destroy();
+      room.doc.destroy();
+      this.rooms.delete(id);
+    }
+    await this.ctx.sys.deleteDraft(id);
+  }
+
   /** Write every unsaved draft now (the timers do it a couple of seconds after typing stops). */
   async flushAll(): Promise<void> {
     for (const room of this.rooms.values()) await this.flush(room);
