@@ -7,7 +7,7 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 const dashboard = JSON.parse(readFileSync(join(here, "../../../deploy/grafana/defluance.json"), "utf8")) as { panels: { title: string; targets: { expr: string }[] }[] };
 
 describe("Grafana dashboard", () => {
-  const source = readdirSync(here)
+  const source = readdirSync(here, { recursive: true, encoding: "utf8" })
     .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
     .map((f) => readFileSync(join(here, f), "utf8"))
     .join("\n");

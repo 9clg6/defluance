@@ -85,7 +85,22 @@ export async function createBranch(repo: string, name: string, from = "HEAD"): P
   await git(repo).branch([name, from]);
 }
 
-export async function writeAndCommit(
+/** Git allows one writer per repository (index.lock): queue writers per path instead of letting all but one fail. */
+const queues = new Map<string, Promise<unknown>>();
+function serialized<T>(repo: string, fn: () => Promise<T>): Promise<T> {
+  repo = resolve(repo);
+  const run = (queues.get(repo) ?? Promise.resolve()).then(fn, fn);
+  const tail = run.catch(() => undefined);
+  queues.set(repo, tail);
+  void tail.then(() => queues.get(repo) === tail && queues.delete(repo));
+  return run;
+}
+
+export function writeAndCommit(repo: string, path: string, content: string, opts: WriteOptions): Promise<{ commit: string; branch?: string }> {
+  return serialized(repo, () => writeAndCommitNow(repo, path, content, opts));
+}
+
+async function writeAndCommitNow(
   repo: string,
   path: string,
   content: string,
@@ -105,7 +120,7 @@ export async function writeAndCommit(
       await git(repo).raw(
         exists ? ["worktree", "add", tmp, opts.branch] : ["worktree", "add", "-b", opts.branch, tmp, "HEAD"],
       );
-      const { commit } = await writeAndCommit(tmp, rel, content, { message: opts.message, author: opts.author });
+      const { commit } = await writeAndCommitNow(tmp, rel, content, { message: opts.message, author: opts.author });
       return { commit, branch: opts.branch };
     } finally {
       await git(repo).raw(["worktree", "remove", "--force", tmp]).catch(() => undefined);

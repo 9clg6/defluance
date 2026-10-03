@@ -69,4 +69,25 @@ describe("git operations", () => {
   it("lastCommitFor is null for an unknown file or empty repo", async () => {
     expect(await lastCommitFor(repo, "nope.md")).toBeNull();
   });
+
+  it("queues concurrent writers instead of failing on git's index lock", async () => {
+    const results = await Promise.allSettled(Array.from({ length: 20 }, (_, i) => writeAndCommit(repo, `n/${i}.md`, `note ${i}`, { message: `add ${i}`, author })));
+    expect(results.filter((r) => r.status === "rejected")).toEqual([]);
+    expect(new Set(results.map((r) => (r as PromiseFulfilledResult<{ commit: string }>).value.commit)).size).toBe(20);
+    expect((await fileLog(repo, "n/19.md")).length).toBe(1);
+  });
+
+  it("serializes mixed direct and branch writes, and keeps the conflict check inside the queue", async () => {
+    const first = await writeAndCommit(repo, "a.md", "v1", { message: "a", author });
+    const racing = await Promise.allSettled([
+      writeAndCommit(repo, "a.md", "from-1", { message: "one", author, baseCommit: first.commit }),
+      writeAndCommit(repo, "a.md", "from-2", { message: "two", author, baseCommit: first.commit }),
+      writeAndCommit(repo, "b.md", "agent", { message: "agent", author, branch: "agent/x" }),
+    ]);
+    // Exactly one of the two direct writers wins; the loser sees a conflict, not a corrupted repo.
+    const direct = racing.slice(0, 2);
+    expect(direct.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((direct.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toBeInstanceOf(ConflictError);
+    expect(racing[2]?.status).toBe("fulfilled");
+  });
 });

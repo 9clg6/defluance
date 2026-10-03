@@ -23,6 +23,8 @@ export interface Db {
 
 // ---------------------------------------------------------------- SQLite (node:sqlite)
 
+const STATEMENT_CACHE_SIZE = 256;
+
 export function openSqlite(path: string): Db {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   // Loaded on demand: `node:sqlite` prints an experimental warning on import, and Postgres mode never needs it.
@@ -30,13 +32,17 @@ export function openSqlite(path: string): Db {
   if (!sqlite) throw new Error("SQLite needs Node.js 22.13 or later (node:sqlite). Upgrade Node, or set DFL_DATABASE_URL to use Postgres.");
   const raw = new sqlite.DatabaseSync(path);
   raw.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;");
+  // Bounded LRU: queries built with a variable number of placeholders would otherwise grow this forever.
   const cache = new Map<string, StatementSync>();
   const stmt = (sql: string) => {
     let s = cache.get(sql);
-    if (!s) {
+    if (s) {
+      cache.delete(sql);
+    } else {
       s = raw.prepare(sql);
-      cache.set(sql, s);
+      if (cache.size >= STATEMENT_CACHE_SIZE) cache.delete(cache.keys().next().value as string);
     }
+    cache.set(sql, s);
     return s;
   };
   const args = (p?: Param[]) => (p ?? []).map((x) => (x === undefined ? null : x)) as SQLInputValue[];

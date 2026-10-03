@@ -1,3 +1,4 @@
+import { parseEnv } from "./env.js";
 import { mkdir, stat, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -107,14 +108,18 @@ function cached<T>(path: string, load: () => Promise<T>, fallback: () => T): () 
 
 export async function createContext(opts: ContextOptions): Promise<Ctx> {
   const env = opts.env ?? process.env;
+  const cfg = parseEnv(env);
   const root = opts.root;
   if (!existsSync(join(root, ".git"))) await initRepo(root);
 
-  const dataDir = opts.dataDir ?? env["DFL_DATA_DIR"] ?? join(root, ".defluance", "data");
+  const dataDir = opts.dataDir ?? cfg.DFL_DATA_DIR ?? join(root, ".defluance", "data");
   let db: Db;
-  const url = env["DFL_DATABASE_URL"];
+  const url = cfg.DFL_DATABASE_URL;
   if (url) {
-    db = openPostgres(pgFromPool(new pg.Pool({ connectionString: url })));
+    const pool = new pg.Pool({ connectionString: url, max: 10, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 10_000 });
+    // An idle client dropped by the server (restart, failover) emits "error"; unhandled, that kills the process.
+    pool.on("error", (e) => (opts.log === false ? undefined : console.error(JSON.stringify({ t: new Date().toISOString(), msg: "pg-pool-error", error: e.message }))));
+    db = openPostgres(pgFromPool(pool));
   } else {
     await mkdir(dataDir, { recursive: true });
     // Keep the database out of the vault's git history.
@@ -128,7 +133,7 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
   const jobs = new JobQueue(db, now);
 
   const secretFile = join(dataDir, "session-secret");
-  let sessionSecret = env["DFL_SESSION_SECRET"];
+  let sessionSecret = cfg.DFL_SESSION_SECRET;
   if (!sessionSecret && !url) {
     try {
       sessionSecret = (await readFile(secretFile, "utf8")).trim();
@@ -139,8 +144,8 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
   }
   if (!sessionSecret) throw new Error("DFL_SESSION_SECRET is required when using Postgres");
 
-  const publicUrl = (env["DFL_PUBLIC_URL"] ?? "http://localhost:4000").replace(/\/$/, "");
-  const defaultRole = env["DFL_DEFAULT_ROLE"] === "reader" || env["DFL_DEFAULT_ROLE"] === "editor" ? env["DFL_DEFAULT_ROLE"] : null;
+  const publicUrl = cfg.DFL_PUBLIC_URL.replace(/\/$/, "");
+  const defaultRole = cfg.DFL_DEFAULT_ROLE ?? null;
 
   return {
     root,
@@ -157,13 +162,13 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
     getSchema: cached(join(root, SCHEMA_PATH), () => loadSchema(root), () => structuredClone(defaultSchemaFallback)),
     bot: { name: "defluance-bot", email: "bot@defluance.local" },
     sessionSecret,
-    admins: (env["DFL_ADMINS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+    admins: cfg.DFL_ADMINS,
     defaultRole,
     localMode: opts.localMode ?? false,
-    oauth: env["GITHUB_OAUTH_CLIENT_ID"] && env["GITHUB_OAUTH_CLIENT_SECRET"] ? { clientId: env["GITHUB_OAUTH_CLIENT_ID"], clientSecret: env["GITHUB_OAUTH_CLIENT_SECRET"] } : null,
+    oauth: cfg.GITHUB_OAUTH_CLIENT_ID && cfg.GITHUB_OAUTH_CLIENT_SECRET ? { clientId: cfg.GITHUB_OAUTH_CLIENT_ID, clientSecret: cfg.GITHUB_OAUTH_CLIENT_SECRET } : null,
     publicUrl,
-    allowedOrigins: [publicUrl, ...(env["DFL_ALLOWED_ORIGINS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean)],
-    rateLimiter: new RateLimiter(Number(env["DFL_RATE_LIMIT"] ?? 300)),
+    allowedOrigins: [publicUrl, ...cfg.DFL_ALLOWED_ORIGINS],
+    rateLimiter: new RateLimiter(cfg.DFL_RATE_LIMIT),
     uiDir: opts.uiDir ?? null,
     fetch: opts.fetch ?? fetch,
     log: opts.log === false ? () => undefined : (opts.log ?? ((e) => console.log(JSON.stringify({ t: new Date().toISOString(), ...e })))),
