@@ -51,6 +51,20 @@ describe("createLlm", () => {
     expect(createLlm("none")).toBeNull();
   });
 
+  it("talks to OpenRouter with its key and the model's own name", async () => {
+    const seen: { url: string; auth: string | null; model: string }[] = [];
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      seen.push({ url: String(url), auth: new Headers(init?.headers).get("authorization"), model: JSON.parse(String(init?.body)).model });
+      return json({ id: "1", object: "chat.completion", created: 1, model: "m", choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } });
+    }) as typeof fetch;
+    const llm = createLlm("openrouter:anthropic/claude-sonnet-5.5", { env: { OPENROUTER_API_KEY: "or-test" }, fetch: fetchMock });
+    expect(llm?.id).toBe("openrouter:anthropic/claude-sonnet-5.5");
+    expect(llm?.model).toBeDefined();
+    expect(await llm?.generate("s", "p")).toBe("ok");
+    expect(seen[0]).toEqual({ url: "https://openrouter.ai/api/v1/chat/completions", auth: "Bearer or-test", model: "anthropic/claude-sonnet-5.5" });
+    expect(() => createLlm("openrouter:x/y", { env: {} })).toThrow(/OPENROUTER_API_KEY/);
+  });
+
   it("generates text through an OpenAI-compatible chat endpoint", async () => {
     const seen: { messages: { role: string; content: string }[]; temperature: number }[] = [];
     const fetchMock = (async (_u: string | URL | Request, init?: RequestInit) => {

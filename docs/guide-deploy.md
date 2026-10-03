@@ -33,6 +33,12 @@ deploy/hetzner/deploy.sh root@203.0.113.7 notes.example.com
 
 It builds the bundle here, copies it to `/opt/defluance`, creates the secrets in `/opt/defluance/.env` on the first run, starts Defluance (SQLite) and Caddy (automatic HTTPS, WebSocket for live editing) and commits the vault's first state. Run it again to upgrade: the vault, the data and the secrets stay. Read the admin token with `ssh root@203.0.113.7 grep ADMIN_TOKEN /opt/defluance/.env`. Ports 80 and 443 must be reachable. Back up `/opt/defluance/vault` (a git repository: set `vault_push` to send every commit to GitHub).
 
+### Backups, secrets and the firewall on that server
+
+- **Backups.** A systemd timer runs `/opt/defluance/backup.sh` every night at about 03:30: a git bundle of the vault (every note, all its history) and a consistent copy of the SQLite database (tokens, members, audit log), kept 14 days in `/opt/defluance/backups`. Restore with `git clone backups/<day>/vault.bundle vault` and copy `defluance.sqlite` into the data volume. These copies live on the same disk: for a copy elsewhere, link the vault to a GitHub repository (`vault_push: true`) or pull the folder with `rsync`.
+- **Secrets.** To add a key without it appearing in a command line or a shell history, pipe it in: `pbpaste | ssh root@203.0.113.7 /opt/defluance/set-secret OPENROUTER_API_KEY`. It writes `/opt/defluance/.env` and restarts Defluance. For `OPENROUTER_API_KEY` it also sets `DFL_LLM=openrouter:anthropic/claude-sonnet-5.5` when `DFL_LLM` is not set; any other model of OpenRouter works: `DFL_LLM=openrouter:<model>`.
+- **Firewall.** The script does not touch it, as the server may host other things. For a server that is only yours: `ufw default deny incoming && ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp && ufw enable`. Docker publishes ports around ufw: a container started with `-p 8081:8080` is open to the world whatever ufw says; bind it to `127.0.0.1:8081:8080` or drop it in the `DOCKER-USER` chain.
+
 ## Without Docker
 
 ```bash

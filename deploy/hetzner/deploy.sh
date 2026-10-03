@@ -13,7 +13,7 @@ cd "$(dirname "$0")/../.."
 node scripts/pack-cli.mjs --no-pack
 ssh "$host" "mkdir -p $dir/vault"
 rsync -az --delete dist-npm/ "$host:$dir/dist-npm/"
-rsync -az deploy/hetzner/Dockerfile deploy/hetzner/compose.yaml deploy/hetzner/Caddyfile deploy/hetzner/.dockerignore "$host:$dir/"
+rsync -az deploy/hetzner/Dockerfile deploy/hetzner/compose.yaml deploy/hetzner/Caddyfile deploy/hetzner/.dockerignore deploy/hetzner/backup.sh deploy/hetzner/set-secret "$host:$dir/"
 
 ssh "$host" bash -s -- "$dir" "$domain" <<'REMOTE'
 set -euo pipefail
@@ -35,5 +35,25 @@ docker compose run -T --rm --no-deps defluance init /vault </dev/null >/dev/null
 docker compose run -T --rm --no-deps --entrypoint sh defluance -c 'cd /vault && git add -A && { git diff --cached --quiet || git -c user.name=Defluance -c user.email=defluance@localhost commit -qm "init defluance"; }' </dev/null
 docker compose up -d
 docker compose ps
+# daily backup of the vault and the database, kept for 14 days
+cat > /etc/systemd/system/defluance-backup.service <<UNIT
+[Unit]
+Description=Defluance backup (vault bundle and database)
+[Service]
+Type=oneshot
+ExecStart=$dir/backup.sh
+UNIT
+cat > /etc/systemd/system/defluance-backup.timer <<UNIT
+[Unit]
+Description=Daily Defluance backup
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=10min
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now defluance-backup.timer >/dev/null 2>&1
 REMOTE
 echo "https://$domain  (admin token: ssh $host grep ADMIN_TOKEN $dir/.env)"

@@ -50,6 +50,17 @@ function openaiLike(provider: string, env: Env, spec: string, fetchFn?: typeof f
   if (provider === "ollama") {
     return createOpenAICompatible({ name: "ollama", baseURL: env["OLLAMA_BASE_URL"] ?? "http://localhost:11434/v1", ...f });
   }
+  if (provider === "openrouter") {
+    // One key, many models (`openrouter:anthropic/claude-sonnet-5.5`). Routing and billing happen at OpenRouter.
+    return createOpenAICompatible({
+      name: "openrouter",
+      baseURL: env["OPENROUTER_BASE_URL"] ?? "https://openrouter.ai/api/v1",
+      apiKey: need(env, "OPENROUTER_API_KEY", spec),
+      headers: { "X-Title": "Defluance" },
+      supportsStructuredOutputs: true,
+      ...f,
+    });
+  }
   if (provider === "openai-compatible") {
     return createOpenAICompatible({
       name: "openai-compatible",
@@ -94,7 +105,7 @@ export function createEmbedder(spec: string | undefined, opts: ProviderOptions =
 }
 
 /**
- * Language model from a spec: `anthropic:<model>`, `openai:<model>`, `ollama:<model>`, `openai-compatible:<model>`,
+ * Language model from a spec: `anthropic:<model>`, `openai:<model>`, `openrouter:<model>`, `ollama:<model>`, `openai-compatible:<model>`,
  * `gateway:<provider/model>` (Vercel AI Gateway, needs AI_GATEWAY_API_KEY). Undefined: no LLM, answers are extractive.
  * `mock`: canned, offline answers for demos (id `mock:demo`), only when asked for by name.
  */
