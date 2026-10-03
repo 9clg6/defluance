@@ -31,6 +31,13 @@ const USAGE = `defluance <command>
   serve [dir] [--port 4000] [--host 127.0.0.1] [--open]
                                     web UI, REST API and MCP endpoint
   mcp [dir]                         MCP server on stdio, for Claude Code and other agents
+  keys generate [--label name] | keys list | keys add-public <file.pem> --label name
+                                    keys for private notes (your private key stays on this machine, protected by a passphrase)
+  encrypt <note> [--to fp,fp]        encrypt a note for your keys and the given recipients (fingerprints)
+  decrypt <note> [--key fp] [--write]
+                                    print a private note, or write it back in place
+  share <note> --to fp,fp | unshare <note> --from fp,fp
+                                    change who can read a private note
   token create <name> [--scopes read,write] [--spaces a,b] [--expires days]
   token list | token revoke <id>
   eval <questions.yaml> [--vault v] [--search [--mode m]]
@@ -147,6 +154,12 @@ export async function run(argv: string[], io: IO): Promise<number> {
         limit: { type: "string" },
         mode: { type: "string" },
         search: { type: "boolean" },
+        label: { type: "string" },
+        to: { type: "string" },
+        from: { type: "string" },
+        key: { type: "string" },
+        write: { type: "boolean" },
+        bits: { type: "string" },
       },
     });
     const [cmd, ...rest] = positionals;
@@ -182,6 +195,22 @@ export async function run(argv: string[], io: IO): Promise<number> {
         return await (await import("./commands/mcp.js")).mcpStdio(rest[0] ?? values.vault);
       case "token":
         return await (await import("./commands/data.js")).tokenCommand(values.vault, rest, { scopes: values.scopes, spaces: values.spaces, expires: values.expires ? Number(values.expires) : undefined }, io);
+      case "keys":
+      case "encrypt":
+      case "decrypt":
+      case "share":
+      case "unshare": {
+        const c = await import("./commands/crypto.js");
+        const o = { vault: values.vault, label: values.label, owner: values.owner, to: values.to, from: values.from, key: values.key, write: values.write, ...(values.bits ? { bits: Number(values.bits) } : {}) };
+        if (cmd === "keys") return await c.keysCommand(rest, o, io);
+        if (!rest[0]) {
+          io.err(`usage: defluance ${cmd} <note>`);
+          return 2;
+        }
+        if (cmd === "encrypt") return await c.encryptCommand(rest[0], o, io);
+        if (cmd === "decrypt") return await c.decryptCommand(rest[0], o, io);
+        return await c.shareCommand(rest[0], o, io, cmd === "unshare");
+      }
       case "eval":
         if (!rest[0]) {
           io.err("usage: defluance eval <questions.yaml>");
