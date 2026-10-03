@@ -207,8 +207,7 @@ mark {
 .cm-activeLine, .cm-activeLineGutter { background: color-mix(in oklab, var(--muted) 60%, transparent); }
 .cm-selectionBackground, .cm-focused .cm-selectionBackground { background: color-mix(in oklab, var(--primary) 30%, transparent) !important; }
 .cm-cursor { border-left-color: var(--foreground); }
-.cm-tooltip { background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 0.5rem; }
-.cm-tooltip-autocomplete ul li[aria-selected] { background: var(--primary); color: var(--primary-foreground); }
+/* the completion popup is themed in Editor.tsx (popupTheme): CodeMirror's own theme outranks a stylesheet */
 
 /* Editor toolbar: icon buttons with a tooltip that also shows on keyboard focus. Active formats are pressed. */
 .dfl-tb-btn {

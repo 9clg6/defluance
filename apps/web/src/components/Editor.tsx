@@ -20,6 +20,23 @@ import * as md from "@/lib/markdown-commands";
 import { type GhLabels, ghOption, parseMention } from "@/lib/mention";
 import type { GhNode, NoteSummary, SearchHit } from "@/lib/types";
 
+/**
+ * The completion popup in the app's colours. CodeMirror's own theme gives it a light background with a selector more
+ * specific than a stylesheet rule, so a stylesheet left the text of the app (light in dark mode) on white: one option
+ * visible, the others unreadable. A theme extension comes later in the cascade at equal specificity.
+ */
+const popupTheme = EditorView.theme({
+  ".cm-tooltip": { backgroundColor: "var(--card)", color: "var(--foreground)", border: "1px solid var(--border)", borderRadius: "0.75rem", boxShadow: "0 10px 30px rgb(0 0 0 / 0.3)", overflow: "hidden" },
+  ".cm-tooltip.cm-tooltip-autocomplete": { maxWidth: "min(42rem, 92vw)" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul": { fontFamily: "var(--font-sans)", fontSize: "0.9rem", maxHeight: "17rem", padding: "0.25rem" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li": { display: "flex", alignItems: "baseline", gap: "0.75rem", padding: "0.4rem 0.6rem", borderRadius: "0.5rem", lineHeight: 1.35, color: "var(--foreground)" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "var(--primary)", color: "var(--primary-foreground)" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li > .cm-completionIcon": { display: "none" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li > .cm-completionLabel": { flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li > .cm-completionDetail": { flex: "0 0 auto", fontStyle: "normal", fontSize: "0.78rem", marginLeft: 0, color: "var(--muted-foreground)", opacity: 1 },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] > .cm-completionDetail": { color: "inherit", opacity: 0.85 },
+});
+
 const highlight = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "700", color: "var(--primary)" },
   { tag: tags.strong, fontWeight: "700" },
@@ -366,6 +383,7 @@ export function Editor({ value, onChange, onSave, linkTypes, label, collab, read
           markdown({ base: markdownLanguage }),
           syntaxHighlighting(highlight),
           EditorView.lineWrapping,
+          popupTheme,
           previewSlot.current.of(previewRef.current ? livePreview(() => textLabels.current) : []),
           EditorView.domEventHandlers({
             paste: (e, view) => takeFiles(e.clipboardData?.files, e, view),

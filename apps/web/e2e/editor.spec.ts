@@ -313,6 +313,43 @@ test.describe("the @ popup says why it is empty", () => {
     await expectAccessible(page, "mention popup, no repository");
   });
 
+  for (const scheme of ["dark", "light"] as const) {
+    test(`every option of the popup is readable and in the app's colours (${scheme} theme)`, async ({ page, request }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.addInitScript((m) => localStorage.setItem("dfl-theme", m), scheme);
+      const items = [12, 13, 14, 15, 16].map((n) => ({ ...ITEM, key: `acme/app#${n}`, title: `Pull request number ${n}` }));
+      await stubGithub(page, { configured: true, defaultRepos: ["acme/app"] }, items);
+      await open(page, request, "see ");
+      await page.keyboard.type("@pr ");
+      const tip = page.locator(".cm-tooltip-autocomplete");
+      await expect(tip.locator("li")).toHaveCount(5);
+      // contrast of each option's text against what is behind it (the option itself, else the popup): a light popup with light text hid all but the selected one
+      const ratios = await tip.evaluate((el) => {
+        const parse = (c: string) => {
+          const cv = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
+          cv.fillStyle = "#000";
+          cv.fillStyle = c;
+          cv.fillRect(0, 0, 1, 1);
+          const [r, g, b, a] = cv.getImageData(0, 0, 1, 1).data as unknown as number[];
+          return { r: r as number, g: g as number, b: b as number, a: (a as number) / 255 };
+        };
+        const lum = ({ r, g, b }: { r: number; g: number; b: number }) => {
+          const f = (v: number) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4);
+          return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+        };
+        const popupBg = parse(getComputedStyle(el).backgroundColor);
+        return [...el.querySelectorAll("li")].map((li) => {
+          const own = parse(getComputedStyle(li).backgroundColor);
+          const bg = own.a > 0.5 ? own : popupBg;
+          const fg = parse(getComputedStyle(li).color);
+          const [hi, lo] = [lum(bg), lum(fg)].sort((x, y) => y - x) as [number, number];
+          return (hi + 0.05) / (lo + 0.05);
+        });
+      });
+      for (const r of ratios) expect(r).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+
   test("a person who is not an admin gets the text only", async ({ page, request }) => {
     await stubGithub(page, { configured: true });
     await page.route("**/api/v1/me", async (route) => {
