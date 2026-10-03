@@ -1,7 +1,8 @@
 "use client";
 
 import { Check, Copy, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { Badge, Button, Card, ErrorBox, Field, Input, Select, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
 import { api, errorMessage, qs } from "@/lib/api";
@@ -376,13 +377,20 @@ function About() {
   );
 }
 
+const SETTINGS_TABS = ["tokens", "members", "github", "about"];
+
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+function SettingsContent() {
   const { t } = useT();
-  const [tab, setTab] = useState("tokens");
-  useEffect(() => {
-    const v = new URLSearchParams(window.location.search).get("tab");
-    if (v && ["tokens", "members", "github", "about"].includes(v)) setTab(v);
-  }, []);
+  const requested = useSearchParams().get("tab") ?? "";
+  const [tab, setTab] = useState(SETTINGS_TABS.includes(requested) ? requested : "tokens");
   return (
     <div className="space-y-4">
       <h1 className="font-heading text-3xl font-semibold tracking-tight">{t("settings.title")}</h1>

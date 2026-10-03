@@ -2,8 +2,8 @@
 
 import { CircleDot, Pencil, Save } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AskPanel } from "@/components/AskPanel";
 import { StatusBadge, TypeBadge } from "@/components/badges";
 import { CreateNote } from "@/components/CreateNote";
@@ -26,18 +26,9 @@ type TabId = "read" | "edit" | "history" | "graph" | "ask" | "audit";
 const TABS: TabId[] = ["read", "edit", "history", "graph", "ask", "audit"];
 
 function useTab(): [TabId, (t: TabId) => void] {
-  const [tab, setTab] = useState<TabId>("read");
-  useEffect(() => {
-    const read = () => {
-      const t = new URLSearchParams(window.location.search).get("tab");
-      setTab(TABS.includes(t as TabId) ? (t as TabId) : "read");
-    };
-    read();
-    window.addEventListener("popstate", read);
-    return () => window.removeEventListener("popstate", read);
-  }, []);
+  const raw = useSearchParams().get("tab");
+  const tab: TabId = TABS.includes(raw as TabId) ? (raw as TabId) : "read";
   const set = useCallback((t: TabId) => {
-    setTab(t);
     const url = new URL(window.location.href);
     if (t === "read") url.searchParams.delete("tab");
     else url.searchParams.set("tab", t);
@@ -50,7 +41,11 @@ export function NotePage() {
   const pathname = usePathname() ?? "/n/";
   const id = idFromPath(pathname);
   if (!id) return <EmptyNote />;
-  return <Loaded key={id} id={id} />;
+  return (
+    <Suspense fallback={null}>
+      <Loaded key={id} id={id} />
+    </Suspense>
+  );
 }
 
 function EmptyNote() {

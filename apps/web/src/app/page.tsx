@@ -2,7 +2,8 @@
 
 import { FilePlus, Network, Terminal } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { AskPanel } from "@/components/AskPanel";
 import { StatusBadge, TypeBadge } from "@/components/badges";
 import { CreateNote } from "@/components/CreateNote";
@@ -21,26 +22,24 @@ interface Page {
 }
 
 export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const { t, lang } = useT();
   const { me } = useAuth();
   const status = useApi<IndexStatus>("/api/v1/index/status");
   const recent = useApi<Page>(`/api/v1/notes${qs({ sort: "updated", limit: 12 })}`);
   const review = useApi<Page>(`/api/v1/notes${qs({ status: "review", limit: 6 })}`);
   const lint = useApi<{ orphans: string[]; broken: unknown[] }>("/api/v1/graph/lint");
-  const [ask, setAsk] = useState<string>();
-  const [deep, setDeep] = useState(false);
+  const params = useSearchParams();
+  const ask = params.get("ask") ?? undefined;
+  const deep = params.get("deep") === "1";
   const [createOpen, setCreateOpen] = useState(false);
-
-  useEffect(() => {
-    const read = () => {
-      const p = new URLSearchParams(window.location.search);
-      setAsk(p.get("ask") ?? undefined);
-      setDeep(p.get("deep") === "1");
-    };
-    read();
-    window.addEventListener("popstate", read);
-    return () => window.removeEventListener("popstate", read);
-  }, []);
 
   const notes = recent.data?.items ?? [];
   const empty = !recent.loading && !!status.data && status.data.notes === 0;

@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
 import { GraphView } from "@/components/GraphView";
 import { Card, ErrorBox, Select, Spinner } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
@@ -10,7 +10,16 @@ import { useT } from "@/lib/i18n";
 import type { Subgraph, VaultSchema } from "@/lib/types";
 
 export default function GraphPage() {
+  return (
+    <Suspense fallback={null}>
+      <GraphContent />
+    </Suspense>
+  );
+}
+
+function GraphContent() {
   const { t, tr } = useT();
+  const params = useSearchParams();
   const router = useRouter();
   const overview = useApi<Subgraph>("/api/v1/graph/overview?limit=300");
   const lint = useApi<{ orphans: string[]; broken: { from: string; target: string; line: number }[] }>("/api/v1/graph/lint");
@@ -18,9 +27,7 @@ export default function GraphPage() {
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
   const [link, setLink] = useState("");
-  const [showLint, setShowLint] = useState(false);
-
-  useEffect(() => setShowLint(new URLSearchParams(window.location.search).has("lint")), []);
+  const [showLint, setShowLint] = useState(() => params.has("lint"));
 
   const filtered = useMemo<Subgraph | undefined>(() => {
     const g = overview.data;

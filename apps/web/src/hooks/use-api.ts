@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import useSWR from "swr";
 import { api, ApiError } from "@/lib/api";
 
 export interface Resource<T> {
@@ -11,36 +11,24 @@ export interface Resource<T> {
   set: (v: T) => void;
 }
 
-/** Fetch `path` (null = do nothing). Re-fetches when the path changes. Ignores stale responses. */
+const fetcher = <T,>(path: string) => api.get<T>(path);
+
+/**
+ * Fetch `path` (null = do nothing). SWR de-duplicates identical requests across components (the schema is read by
+ * a dozen of them), ignores stale responses, and keeps one cache per address. Focus revalidation stays off:
+ * this app edits documents, and data changing under an open editor is worse than slightly old data.
+ */
 export function useApi<T>(path: string | null): Resource<T> {
-  const [data, setData] = useState<T>();
-  const [error, setError] = useState<ApiError | Error>();
-  const [loading, setLoading] = useState(path !== null);
-  const seq = useRef(0);
-
-  const load = useCallback(async () => {
-    if (path === null) return;
-    const mine = ++seq.current;
-    setLoading(true);
-    try {
-      const r = await api.get<T>(path);
-      if (mine === seq.current) {
-        setData(r);
-        setError(undefined);
-      }
-    } catch (e) {
-      if (mine === seq.current) {
-        setError(e as Error);
-        setData(undefined);
-      }
-    } finally {
-      if (mine === seq.current) setLoading(false);
-    }
-  }, [path]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  return { data, error, loading, reload: load, set: setData };
+  const { data, error, isValidating, mutate } = useSWR<T, ApiError | Error>(path, fetcher<T>, {
+    revalidateOnFocus: false,
+    shouldRetryOnError: false,
+    dedupingInterval: 2000,
+  });
+  return {
+    data,
+    error,
+    loading: path !== null && isValidating,
+    reload: async () => void (await mutate()),
+    set: (v) => void mutate(v, { revalidate: false }),
+  };
 }

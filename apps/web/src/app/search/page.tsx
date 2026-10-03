@@ -2,7 +2,8 @@
 
 import { Search as SearchIcon } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
 import { ModePicker } from "@/components/ModePicker";
 import { ResultCard } from "@/components/ResultCard";
 import { Understood } from "@/components/Understood";
@@ -18,32 +19,28 @@ import type { SearchMode, VaultSchema } from "@/lib/types";
 const MODES: SearchMode[] = ["hybrid", "keyword", "meaning", "smart"];
 
 export default function SearchPage() {
+  return (
+    <Suspense fallback={null}>
+      <SearchContent />
+    </Suspense>
+  );
+}
+
+function SearchContent() {
   const { t, tr } = useT();
   const { me } = useAuth();
   const schema = useApi<VaultSchema>("/api/v1/schema");
-  const [input, setInput] = useState("");
-  const [q, setQ] = useState("");
-  const [mode, setMode] = useState<SearchMode>("hybrid");
-  const [type, setType] = useState("");
-  const [status, setStatus] = useState("");
-
   // The address is the state: a search can be shared and the back button works.
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    const m = p.get("mode");
-    setInput(p.get("q") ?? "");
-    setQ(p.get("q") ?? "");
-    setMode(MODES.includes(m as SearchMode) ? (m as SearchMode) : "hybrid");
-    setType(p.get("type") ?? "");
-    setStatus(p.get("status") ?? "");
-  }, []);
+  const params = useSearchParams();
+  const q = params.get("q") ?? "";
+  const rawMode = params.get("mode");
+  const mode: SearchMode = MODES.includes(rawMode as SearchMode) ? (rawMode as SearchMode) : "hybrid";
+  const type = params.get("type") ?? "";
+  const status = params.get("status") ?? "";
+  const [input, setInput] = useState(q);
 
   const apply = (next: { q?: string; mode?: SearchMode; type?: string; status?: string }) => {
     const v = { q, mode, type, status, ...next };
-    setQ(v.q);
-    setMode(v.mode);
-    setType(v.type);
-    setStatus(v.status);
     window.history.replaceState(null, "", `/search/${qs({ q: v.q, mode: v.mode === "hybrid" ? undefined : v.mode, type: v.type, status: v.status })}`);
   };
 
