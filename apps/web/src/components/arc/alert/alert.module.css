@@ -1,0 +1,15 @@
+.presence { min-width: 0; }
+.alert { display: flex; align-items: start; gap: var(--arc-space-3); border: 1px solid var(--arc-border); border-radius: var(--arc-radius-control); padding: var(--arc-space-4); background: var(--arc-surface); box-shadow: var(--arc-shadow-resting); }
+.icon, .glyph { position: relative; display: grid; flex: 0 0 auto; place-items: center; }
+.icon { width: 18px; height: 18px; margin-top: 1px; }
+.icon svg { display: block; }
+.copy { flex: 1; min-width: 0; }
+.content { position: relative; }
+.title { position: relative; display: block; font-size: var(--arc-text-sm); font-weight: 500; }
+.line { display: block; }
+.description { position: relative; margin: var(--arc-space-1) 0 0; color: var(--arc-text-secondary); font-size: var(--arc-text-xs); }
+.info .icon { color: var(--arc-accent); } .success .icon { color: var(--arc-success); } .warning .icon { color: var(--arc-warning); } .danger .icon { color: var(--arc-danger); }
+.dismiss { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; margin: -5px -6px -5px 0; border: 0; border-radius: var(--arc-radius-pill); background: transparent; color: var(--arc-text-muted); cursor: pointer; transition: transform var(--arc-duration-spring) var(--arc-ease-spring), background-color var(--arc-duration-fast) var(--arc-ease-standard), color var(--arc-duration-fast) var(--arc-ease-standard); }
+.dismiss:active { transform: scale(.96); transition-duration: var(--arc-duration-instant); transition-timing-function: var(--arc-ease-standard); }
+@media (hover: hover) and (pointer: fine) { .dismiss:hover { background: var(--arc-surface-muted); color: var(--arc-foreground); } }
+@media (prefers-reduced-motion: reduce) { .dismiss { transition: none; } .dismiss:active { transform: none; } }

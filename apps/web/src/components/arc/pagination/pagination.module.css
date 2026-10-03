@@ -1,0 +1,17 @@
+.nav { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: var(--arc-space-1); }
+.nav button { position: relative; display: grid; width: var(--arc-control-height-sm); height: var(--arc-control-height-sm); place-items: center; border: 1px solid transparent; border-radius: var(--arc-radius-control); background: transparent; color: var(--arc-text-secondary); font: inherit; font-size: var(--arc-text-xs); font-variant-numeric: tabular-nums; cursor: pointer; transition: background-color var(--arc-duration-fast) var(--arc-ease-standard), color var(--arc-duration-fast) var(--arc-ease-standard); }
+.nav button[aria-current="page"] { color: var(--arc-foreground); }
+/* One shared mark travels between pages. Before it has measured (server render), the button draws its own. */
+.mark { position: absolute; top: 0; left: 0; width: var(--arc-control-height-sm); height: var(--arc-control-height-sm); box-sizing: border-box; border: 1px solid var(--arc-border); border-radius: var(--arc-radius-control); background: var(--arc-surface); box-shadow: var(--arc-shadow-resting); opacity: 0; pointer-events: none; }
+.nav[data-mark-ready] .mark { opacity: 1; }
+.nav:not([data-mark-ready]) button[aria-current="page"] { border-color: var(--arc-border); background: var(--arc-surface); box-shadow: var(--arc-shadow-resting); }
+/* Only the arrows press in. Page numbers move with Motion, so they keep CSS off transform and opacity. */
+.nav .step { transition: background-color var(--arc-duration-fast) var(--arc-ease-standard), color var(--arc-duration-fast) var(--arc-ease-standard), opacity var(--arc-duration-fast) var(--arc-ease-standard), transform var(--arc-duration-spring) var(--arc-ease-spring); }
+.nav .step:active:not(:disabled) { transform: scale(.96); transition-duration: var(--arc-duration-fast), var(--arc-duration-fast), var(--arc-duration-fast), 100ms; transition-timing-function: var(--arc-ease-standard), var(--arc-ease-standard), var(--arc-ease-standard), ease-out; }
+.nav button:disabled { opacity: .4; cursor: not-allowed; }
+.nav button:focus-visible { outline: 2px solid var(--arc-focus-ring); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .nav button:hover:not(:disabled) { background: var(--arc-surface-muted); color: var(--arc-foreground); }
+  .nav[data-mark-ready] button[aria-current="page"]:hover { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .nav button, .nav .step { transition: none; } .nav .step:active:not(:disabled) { transform: none; } }

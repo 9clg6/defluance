@@ -1,33 +1,57 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { signIn } from "./helpers";
 
-const animations = (page: import("@playwright/test").Page, selector: string) =>
-  page.evaluate((sel) => document.querySelector(sel)?.getAnimations().map((a) => ({ name: (a as CSSAnimation).animationName, ms: Number(a.effect?.getTiming().duration) })) ?? null, selector);
+/** Opacity and transform of the open dialog, once per frame for 700 ms. Must be started before the click. */
+const sampleDialog = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<{ opacity: number; transform: string }[]>((done) => {
+        const out: { opacity: number; transform: string }[] = [];
+        const t0 = performance.now();
+        const tick = () => {
+          const d = document.querySelector('[role="dialog"]');
+          if (d) {
+            const s = getComputedStyle(d);
+            out.push({ opacity: Number(s.opacity), transform: s.transform });
+          }
+          if (performance.now() - t0 < 700) requestAnimationFrame(tick);
+          else done(out);
+        };
+        tick();
+      }),
+  );
+
+const moved = (t: string) => t !== "none" && t !== "matrix(1, 0, 0, 1, 0, 0)";
 
 test.describe("dialog motion", () => {
-  test("a dialog scales and fades in, and fades out before it leaves the page", async ({ page }) => {
+  test("a dialog fades in while it scales up, then rests, and leaves when closed", async ({ page }) => {
     await signIn(page);
+    const sampled = sampleDialog(page);
     await page.getByRole("button", { name: "New note" }).click();
     const dialog = page.getByRole("dialog", { name: "New note" });
     await expect(dialog).toBeVisible();
-    expect(await animations(page, "[data-dialog-content]")).toEqual([{ name: "dfl-modal-in", ms: 250 }]);
-    expect(await animations(page, "[data-dialog-overlay]")).toEqual([{ name: "dfl-fade-in", ms: 250 }]);
+    const frames = await sampled;
+    expect(frames.length).toBeGreaterThan(5);
+    expect(Math.min(...frames.map((f) => f.opacity))).toBeLessThan(0.9); // it starts faded
+    expect(frames.some((f) => moved(f.transform))).toBe(true); // and scaled
+    expect(frames.at(-1)).toMatchObject({ opacity: 1 }); // and ends at rest
+    expect(moved(frames.at(-1)?.transform ?? "none")).toBe(false);
 
-    await page.waitForTimeout(300);
     await page.keyboard.press("Escape");
-    // still mounted while the exit animation runs, then gone
-    expect(await animations(page, "[data-dialog-content]")).toEqual([{ name: "dfl-modal-out", ms: 150 }]);
     await expect(dialog).toHaveCount(0);
   });
 
-  test("with reduced motion the dialog still opens and closes, without a visible animation", async ({ browser }) => {
+  test("with reduced motion the dialog fades but does not scale or slide", async ({ browser }) => {
     const ctx = await browser.newContext({ reducedMotion: "reduce", baseURL: "http://127.0.0.1:4010" });
     const page = await ctx.newPage();
     await signIn(page);
+    const sampled = sampleDialog(page);
     await page.getByRole("button", { name: "New note" }).click();
     await expect(page.getByRole("dialog", { name: "New note" })).toBeVisible();
-    const open = await animations(page, "[data-dialog-content]");
-    for (const a of open ?? []) expect(a.ms).toBeLessThan(1);
+    const frames = await sampled;
+    expect(frames.length).toBeGreaterThan(0);
+    expect(frames.some((f) => moved(f.transform))).toBe(false);
+    expect(frames.at(-1)).toMatchObject({ opacity: 1 });
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await ctx.close();

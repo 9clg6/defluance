@@ -1,0 +1,17 @@
+.field { display: grid; gap: var(--arc-space-2); min-width: 0; }
+.field label { font-size: var(--arc-text-sm); font-weight: 500; line-height: var(--arc-leading-body); letter-spacing: var(--arc-tracking-body); }
+/* Focus darkens the border; the shell never changes size. */
+.shell { display: flex; min-height: var(--arc-control-height-md); align-items: center; gap: var(--arc-space-2); border: 1px solid var(--arc-border-strong); border-radius: var(--arc-radius-control); padding: 0 var(--arc-space-3); background: var(--arc-surface); transition: border-color var(--arc-duration-fast) var(--arc-ease-standard); }
+@media (hover: hover) and (pointer: fine) { .shell:hover:not(:focus-within) { border-color: var(--arc-foreground); } }
+.shell:focus-within { border-color: var(--arc-foreground); }
+/* The glass wakes up with the field: muted at rest, full contrast while searching. */
+.shell > svg { flex: 0 0 auto; color: var(--arc-text-muted); transition: color var(--arc-duration-fast) var(--arc-ease-standard); }
+.shell:focus-within > svg, .shell[data-filled="true"] > svg { color: var(--arc-foreground); }
+.input { width: 100%; min-width: 0; border: 0; background: transparent; color: var(--arc-foreground); font: inherit; font-size: var(--arc-text-sm); letter-spacing: var(--arc-tracking-body); outline: 0; }
+.input:focus-visible { outline: 0; }
+.input::placeholder { color: var(--arc-text-muted); }
+.input::-webkit-search-cancel-button { display: none; }
+.clearSlot { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; }
+.shell button { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border: 0; border-radius: var(--arc-radius-control); background: transparent; color: var(--arc-text-muted); transition: background-color var(--arc-duration-fast) var(--arc-ease-standard), color var(--arc-duration-fast) var(--arc-ease-standard); }
+@media (hover: hover) and (pointer: fine) { .shell button:hover { background: var(--arc-surface-muted); color: var(--arc-foreground); } }
+@media (prefers-reduced-motion: reduce) { .shell, .shell > svg, .shell button { transition: none; } }

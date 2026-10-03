@@ -1,0 +1,15 @@
+.accordion { width: 100%; border-top: 1px solid var(--arc-border); }
+.item { border-bottom: 1px solid var(--arc-border); }
+.header { margin: 0; }
+.trigger { display: flex; width: 100%; min-height: var(--arc-control-height-lg); align-items: center; justify-content: space-between; gap: var(--arc-space-5); padding: var(--arc-space-2) 0; border: 0; background: transparent; color: var(--arc-foreground); font: inherit; font-size: var(--arc-text-sm); font-weight: 500; line-height: var(--arc-leading-body); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: color var(--arc-duration-fast) var(--arc-ease-standard); }
+@media (hover: hover) and (pointer: fine) { .trigger:hover { color: var(--arc-text-secondary); } .trigger:hover .icon { color: var(--arc-foreground); } }
+/* Rotation is driven by a spring in accordion.tsx; CSS only handles color. */
+.icon { display: inline-flex; flex: 0 0 auto; color: var(--arc-text-muted); transition: color var(--arc-duration-fast) var(--arc-ease-standard); }
+.trigger[data-state="open"] .icon { color: var(--arc-foreground); }
+.panel { overflow: hidden; color: var(--arc-text-secondary); font-size: var(--arc-text-sm); line-height: var(--arc-leading-body); }
+.panelInner { overflow-wrap: anywhere; padding: 0 var(--arc-space-8) var(--arc-space-5) 0; }
+.lg .trigger { min-height: 76px; gap: var(--arc-space-8); padding-block: var(--arc-space-5); font-size: var(--arc-text-lg); letter-spacing: var(--arc-tracking-body); }
+.lg .panel { font-size: var(--arc-text-base); line-height: 1.65; }
+.lg .panelInner { max-width: 62ch; padding: 0 var(--arc-space-12) var(--arc-space-6) 0; }
+@media (max-width: 520px) { .lg .trigger { min-height: 68px; font-size: var(--arc-text-base); } .lg .panel { font-size: var(--arc-text-sm); } .lg .panelInner { padding-right: var(--arc-space-6); } }
+@media (prefers-reduced-motion: reduce) { .trigger, .icon { transition: none; } }

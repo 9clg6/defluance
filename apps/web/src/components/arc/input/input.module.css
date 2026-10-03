@@ -1,0 +1,22 @@
+/* No row gap: grid tracks clamp a negative margin at zero, so a closed message row would still pay the gap. Each row carries its own space instead. */
+.field { display: grid; min-width: 0; }
+.label { margin-bottom: var(--arc-space-2); color: var(--arc-foreground); font-size: var(--arc-text-sm); font-weight: 500; line-height: var(--arc-leading-body); }
+/* Focus answers with the border colour alone (no rings or halos); the field itself never changes size. */
+.input { width: 100%; min-height: var(--arc-control-height-md); padding: 0 var(--arc-space-3); border: 1px solid var(--arc-border-strong); border-radius: var(--arc-radius-control); background: var(--arc-surface); color: var(--arc-foreground); font: inherit; font-size: var(--arc-text-sm); line-height: var(--arc-leading-body); letter-spacing: var(--arc-tracking-body); outline: none; transition: border-color var(--arc-duration-fast) var(--arc-ease-standard), background-color var(--arc-duration-fast) var(--arc-ease-standard); }
+.input::placeholder { color: var(--arc-text-muted); }
+@media (hover: hover) and (pointer: fine) { .input:hover:not(:disabled, [aria-invalid="true"]) { border-color: var(--arc-foreground); } }
+.input:focus-visible { border-color: var(--arc-foreground); }
+.input[aria-invalid="true"] { border-color: var(--arc-danger); }
+.input:disabled { cursor: not-allowed; opacity: .5; background: var(--arc-surface-muted); }
+/* The row's space is padding inside the clipped slot, so the height animates from a true zero. */
+.messageSlot { display: block; overflow: hidden; }
+.description, .error { display: block; padding-top: var(--arc-space-2); font-size: var(--arc-text-xs); line-height: var(--arc-leading-body); }
+.description { color: var(--arc-text-muted); } .error { color: var(--arc-danger); }
+/* Words are measured against this box when they pop out to leave, so it must be the positioned parent. */
+.words { position: relative; display: block; }
+.word { display: inline-block; white-space: pre; }
+/* One column per character of a count. Tabular digits keep columns equal, so only a gained or lost digit changes the width. */
+.column { position: relative; display: inline-flex; justify-content: center; font-variant-numeric: tabular-nums; }
+.column > span { display: inline-block; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .input { transition-duration: .01ms; } }

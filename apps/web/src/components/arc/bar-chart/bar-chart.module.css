@@ -1,0 +1,49 @@
+.figure { display: grid; min-width: 0; gap: var(--arc-space-5); margin: 0; color: var(--arc-foreground); }
+
+/* The headline is the readout: the average at rest, the scrubbed bar while exploring. Each line keeps its height, so swaps never move the plot. */
+.header { display: grid; min-width: 0; gap: 2px; }
+.kind, .when { display: block; min-height: calc(1em * var(--arc-leading-body)); font-size: var(--arc-text-sm); line-height: var(--arc-leading-body); }
+.kind { color: var(--arc-text-secondary); }
+.when { color: var(--arc-text-muted); }
+.value { display: flex; min-width: 0; align-items: baseline; gap: 6px; font-family: var(--arc-font-display); font-size: var(--arc-text-3xl); font-weight: 500; letter-spacing: var(--arc-tracking-display); line-height: var(--arc-leading-display); font-variant-numeric: tabular-nums; }
+.unit { color: var(--arc-text-secondary); font-family: var(--arc-font-body); font-size: var(--arc-text-base); font-weight: 400; letter-spacing: var(--arc-tracking-body); }
+.swap { position: relative; display: block; min-width: 0; }
+.swapText { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A rolling number: outgoing digits are popped out of flow and anchored right, and the clip hides a digit still rising into a new place. */
+.roll { position: relative; display: inline-flex; justify-content: flex-end; overflow-x: clip; overflow-y: visible; white-space: pre; }
+.digits { position: relative; display: inline-flex; flex: none; }
+.digit { position: relative; display: inline-block; white-space: pre; }
+.sizer { position: absolute; top: 0; left: 0; visibility: hidden; white-space: pre; pointer-events: none; }
+
+/* Plot, right-hand value axis, and the date axis beneath. */
+.chart { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 52px; grid-template-rows: auto 26px; min-width: 0; }
+.plot { position: relative; grid-area: 1 / 1; min-width: 0; }
+.svg { display: block; overflow: hidden; }
+.grid { stroke: var(--arc-border); stroke-width: 1; shape-rendering: crispEdges; }
+.baseline { stroke: var(--arc-border-strong); stroke-width: 1; shape-rendering: crispEdges; }
+.cursor { stroke: var(--arc-border-strong); stroke-width: 1; shape-rendering: crispEdges; }
+.mean { stroke: var(--arc-text-secondary); stroke-width: 1; stroke-dasharray: 3 3; shape-rendering: crispEdges; }
+/* The series is drawn in a soft step of the accent; the scrubbed bar takes the full accent while its neighbours step back. */
+.bar { fill: color-mix(in oklab, var(--arc-accent) 62%, var(--arc-surface)); transition: fill var(--arc-duration-fast) var(--arc-ease-standard); }
+.chart[data-scrubbing] .bar { fill: color-mix(in oklab, var(--arc-accent) 24%, var(--arc-surface)); }
+/* On a dark surface a lighter mix keeps the hue clear instead of turning muddy. */
+:global(:global(.dark)) .bar { fill: color-mix(in oklab, var(--arc-accent) 76%, var(--arc-surface)); }
+:global(:global(.dark)) .chart[data-scrubbing] .bar { fill: color-mix(in oklab, var(--arc-accent) 34%, var(--arc-surface)); }
+:global(:global(.dark)) .chart .bar[data-active] { fill: var(--arc-accent); }
+.chart .bar[data-active] { fill: var(--arc-accent); }
+
+.gutter { position: relative; grid-area: 1 / 2; min-width: 0; }
+.tick, .meanLabel { position: absolute; top: 0; left: 10px; display: block; height: 0; white-space: nowrap; pointer-events: none; }
+.tickText { display: block; transform: translateY(-50%); color: var(--arc-text-muted); font-size: var(--arc-text-xs); line-height: 1; font-variant-numeric: tabular-nums; }
+.meanLabel .tickText { color: var(--arc-foreground); font-weight: 500; }
+
+.axis { position: relative; grid-area: 2 / 1; min-width: 0; overflow: hidden; }
+.axisLabel { position: absolute; top: 8px; left: 0; color: var(--arc-text-muted); font-size: var(--arc-text-xs); line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* The scrubber covers the plot and its axes. Horizontal drags scrub, vertical swipes still scroll the page. */
+.scrubber { position: absolute; inset: 0; border-radius: calc(var(--arc-radius-control) / 2); outline: none; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
+.measure { position: absolute; top: 0; left: 0; display: flex; visibility: hidden; pointer-events: none; }
+.measure > span { flex: none; font-size: var(--arc-text-xs); line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }

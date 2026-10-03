@@ -1,0 +1,43 @@
+.block { width: 100%; min-width: 0; max-width: 100%; overflow: hidden; border: 1px solid var(--arc-border); border-radius: var(--arc-radius-panel); background: var(--arc-surface); }
+.header { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: var(--arc-space-3); border-bottom: 1px solid var(--arc-border-subtle); padding: var(--arc-space-2) var(--arc-space-3) var(--arc-space-2) var(--arc-space-4); background: var(--arc-surface-raised); }
+/* Baseline alignment keeps the smaller mono language label on the file name's baseline; the icon centres on its own. */
+.file { display: flex; min-width: 0; align-items: baseline; gap: var(--arc-space-2); color: var(--arc-text-secondary); font-family: var(--arc-font-body); font-size: var(--arc-text-sm); font-weight: 500; letter-spacing: var(--arc-tracking-body); line-height: var(--arc-leading-body); }
+.file > svg { flex: none; align-self: center; color: var(--arc-text-muted); }
+.filename { position: relative; min-width: 0; overflow: hidden; color: var(--arc-foreground); }
+/* Changing text stacks old and new words in one cell; reserve spans hold the widest label so the cell never snaps. */
+.swap { display: inline-grid; min-width: 0; white-space: nowrap; }
+.swap > span, .swapStack > span { grid-area: 1 / 1; min-width: 0; }
+.swapStack { display: grid; min-width: 0; }
+.swapText { display: block; overflow: hidden; text-overflow: ellipsis; }
+.reserve { visibility: hidden; }
+.sizer { position: absolute; top: 0; left: 0; white-space: nowrap; visibility: hidden; pointer-events: none; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.language { flex: none; color: var(--arc-text-muted); font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: var(--arc-text-xs); font-weight: 400; }
+.language::before { content: "·"; margin-right: var(--arc-space-2); color: var(--arc-border-strong); }
+/* The source area follows its content height on a spring. Before it measures, a collapsed block clips from CSS. */
+.viewport { --code-collapsed: calc(var(--code-lines, 0) * var(--arc-text-sm) * 1.7 + var(--arc-space-5) * 2); overflow: hidden; }
+.pre { position: relative; overflow: auto; margin: 0; padding: var(--arc-space-5); color: var(--arc-foreground); font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; font-size: var(--arc-text-sm); font-variant-ligatures: none; line-height: 1.7; tab-size: 2; white-space: pre; }
+/* Block so new source can rise in with a transform; inline code ignores transforms. */
+.code { display: block; }
+.expand { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: center; gap: var(--arc-space-2); border: 0; border-top: 1px solid var(--arc-border-subtle); padding: 0 var(--arc-space-4); background: var(--arc-surface-raised); color: var(--arc-text-secondary); font: inherit; font-size: var(--arc-text-sm); font-weight: 500; cursor: pointer; transition: color var(--arc-duration-fast) var(--arc-ease-standard), background-color var(--arc-duration-fast) var(--arc-ease-standard); }
+.chevron { display: grid; flex: none; place-items: center; color: var(--arc-text-muted); }
+/* Each role has contrast in both themes; color supports, but never replaces, source text. */
+.comment { color: var(--arc-text-muted); font-style: italic; }
+.string { color: oklch(46% .13 150); }
+.number { color: oklch(50% .14 55); }
+.keyword { color: oklch(48% .15 285); }
+.type { color: oklch(46% .13 230); }
+.function { color: oklch(43% .12 25); }
+.property { color: oklch(44% .12 85); }
+.tag { color: oklch(46% .13 230); }
+.punctuation { color: var(--arc-text-secondary); }
+:global(:root:global(.dark)) .string { color: oklch(77% .15 150); }
+:global(:root:global(.dark)) .number { color: oklch(80% .14 75); }
+:global(:root:global(.dark)) .keyword { color: oklch(78% .16 285); }
+:global(:root:global(.dark)) .type { color: oklch(79% .13 230); }
+:global(:root:global(.dark)) .function { color: oklch(80% .13 25); }
+:global(:root:global(.dark)) .property { color: oklch(79% .12 85); }
+:global(:root:global(.dark)) .tag { color: oklch(79% .13 230); }
+@media (hover: hover) and (pointer: fine) { .expand:hover { background: var(--arc-surface-muted); color: var(--arc-foreground); } .expand:hover .chevron { color: var(--arc-foreground); } }
+@media (max-width: 420px) { .header { padding-left: var(--arc-space-3); } .header :global(button) { width: var(--arc-control-height-sm); padding-inline: 0; } .header :global(button) > span:last-of-type { display: none; } .viewport { --code-collapsed: calc(var(--code-lines, 0) * var(--arc-text-xs) * 1.7 + var(--arc-space-4) * 2); } .pre { padding: var(--arc-space-4); font-size: var(--arc-text-xs); } }
+@media (prefers-reduced-motion: reduce) { .expand { transition: none; } }

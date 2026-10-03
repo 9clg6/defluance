@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Providers } from "@/components/Providers";
 import { themeScript } from "@/lib/theme";
 import "./globals.css";
+import "@/components/arc/arc-theme.css";
 
 export const metadata: Metadata = {
   title: { default: "Defluance", template: "%s · Defluance" },
