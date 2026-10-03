@@ -1,4 +1,4 @@
-import { stepCountIs, tool, generateText } from "ai";
+import { isStepCount, tool, ToolLoopAgent } from "ai";
 import { z } from "zod";
 import { neighbors, search, type IndexStore } from "@defluance/indexer";
 import { ask, NO_SOURCE, type AskOptions, type AskResult, type Citation } from "./ask.js";
@@ -120,17 +120,17 @@ export async function deepAsk(store: IndexStore, question: string, opts: DeepAsk
 
   let text: string;
   try {
-    const result = await generateText({
+    const agent = new ToolLoopAgent({
       model: llm.model,
-      system: SYSTEM,
-      prompt: question,
+      instructions: SYSTEM,
       tools,
       temperature: 0,
       maxRetries: 2,
-      stopWhen: stepCountIs(maxSteps),
+      stopWhen: isStepCount(maxSteps),
       // the last round may not call tools: the agent must answer with what it found
-      prepareStep: ({ stepNumber }: { stepNumber: number }) => (stepNumber >= maxSteps - 1 ? { toolChoice: "none" as const } : undefined),
+      prepareStep: ({ stepNumber }) => (stepNumber >= maxSteps - 1 ? { toolChoice: "none" as const } : undefined),
     });
+    const result = await agent.generate({ prompt: question });
     text = result.text.trim();
   } catch (e) {
     // a model without tool support, or a provider error: fall back to the single-pass answer

@@ -1,7 +1,8 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { embedMany, generateText } from "ai";
+import { embedMany, generateText, Output } from "ai";
+import type { z } from "zod";
 import { hashEmbedder, type Embedder } from "@defluance/shared";
 import { createLocalEmbedder, type LocalOptions } from "./local-embedder.js";
 
@@ -11,6 +12,8 @@ export interface Llm {
   /** `provider:model`, shown in logs and answers. */
   id: string;
   generate(system: string, prompt: string): Promise<string>;
+  /** Structured output through the model's own JSON mode, validated against the schema. Absent on custom implementations. */
+  object?<T>(system: string, prompt: string, schema: z.ZodType<T>): Promise<T>;
   /** The underlying model, for features that call tools (deep search). Absent on custom implementations. */
   model?: LanguageModel;
 }
@@ -111,12 +114,21 @@ export function createLlm(spec: string | undefined, opts: ProviderOptions = {}):
     if (!p) throw new Error(`unsupported LLM provider "${provider}"`);
     languageModel = p.languageModel(model);
   }
+  return llmFromModel(spec, languageModel);
+}
+
+/** Wrap any AI SDK model: plain text, structured output, and the raw model for tool-calling agents. */
+export function llmFromModel(id: string, model: LanguageModel): Llm {
   return {
-    id: spec,
-    model: languageModel,
+    id,
+    model,
     async generate(system, prompt) {
-      const { text } = await generateText({ model: languageModel, system, prompt, temperature: 0, maxRetries: 2 });
+      const { text } = await generateText({ model, system, prompt, temperature: 0, maxRetries: 2 });
       return text;
+    },
+    async object(system, prompt, schema) {
+      const { output } = await generateText({ model, system, prompt, temperature: 0, maxRetries: 2, output: Output.object({ schema }) });
+      return output;
     },
   };
 }

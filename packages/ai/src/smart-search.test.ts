@@ -1,8 +1,9 @@
 import { fileURLToPath } from "node:url";
+import { MockLanguageModelV4 } from "ai/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { IndexStore, indexVault, openSqlite, search } from "@defluance/indexer";
 import { hashEmbedder } from "@defluance/shared";
-import type { Llm } from "./providers.js";
+import { llmFromModel, type Llm } from "./providers.js";
 import { fuse, parseOrder, parsePlan, smartSearch } from "./smart-search.js";
 
 const VAULT = fileURLToPath(new URL("../../../fixtures/vault-eval", import.meta.url));
@@ -139,3 +140,24 @@ describe("smartSearch", () => {
     expect(r.hits).toEqual([]);
   });
 });
+
+describe("smartSearch with a real model object (native structured output)", () => {
+  const usage = { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } };
+  const json = (o: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(o) }], finishReason: { unified: "stop" as const, raw: undefined }, usage, warnings: [] });
+
+  it("asks for a JSON object with a schema, and still refuses values outside the vocabulary", async () => {
+    const model = new MockLanguageModelV4({ doGenerate: [json({ queries: ["password reset link email"], filters: { status: "approved", type: "made-up-type" } })] });
+    const r = await smartSearch(store, "I lost my secret phrase, how do I get back in", { embedder, llm: llmFromModel("mock:json", model), vocabulary });
+    expect(model.doGenerateCalls[0]?.responseFormat?.type).toBe("json");
+    expect(r.understood.queries).toContain("password reset link email");
+    expect(r.understood.filters).toEqual({ status: "approved" });
+  });
+
+  it("falls back to plain search when the structured call fails", async () => {
+    const model = new MockLanguageModelV4({ doGenerate: async () => { throw new Error("json mode unsupported"); } });
+    const r = await smartSearch(store, "reset link valid", { embedder, llm: llmFromModel("mock:json", model), vocabulary });
+    expect(r.understood.fallback).toMatch(/json mode unsupported/);
+    expect(r.hits.length).toBeGreaterThan(0);
+  });
+});
+

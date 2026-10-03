@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { search, type NoteFilter, type SearchHit } from "@defluance/indexer";
 import type { Embedder } from "@defluance/shared";
 import type { Llm } from "./providers.js";
@@ -36,6 +37,12 @@ const PLAN_SYSTEM = [
   "queries: up to 3 searches. Rephrase with synonyms and the key terms, short. If the question is in English or French, add the other language.",
   "filters: set one only when the question clearly asks for it (\"approved specs\" means status approved). Otherwise leave filters empty.",
 ].join(" ");
+
+const PlanShape = z.object({
+  queries: z.array(z.string()).describe("up to 3 short searches"),
+  filters: z.object({ type: z.string().optional(), status: z.string().optional(), tag: z.string().optional() }),
+});
+const OrderShape = z.object({ order: z.array(z.number().int()).describe("result numbers, most relevant first") });
 
 export interface Plan {
   queries: string[];
@@ -129,7 +136,10 @@ export async function smartSearch(store: Parameters<typeof search>[0], question:
   try {
     const vocab = opts.vocabulary ?? { types: [], statuses: [] };
     const prompt = `Question: ${question}\nTypes in this vault: ${vocab.types.join(", ") || "none"}\nStatuses: ${vocab.statuses.join(", ") || "none"}`;
-    plan = parsePlan(await opts.llm.generate(PLAN_SYSTEM, prompt), vocab);
+    // Native structured output when the model supports it; the text path keeps custom and weaker models working.
+    // Either way the result goes through parsePlan: a filter outside the vault's vocabulary is never trusted.
+    const raw = opts.llm.object ? JSON.stringify(await opts.llm.object(PLAN_SYSTEM, prompt, PlanShape)) : await opts.llm.generate(PLAN_SYSTEM, prompt);
+    plan = parsePlan(raw, vocab);
   } catch (e) {
     understood.fallback = `the model could not plan the search: ${e instanceof Error ? e.message : String(e)}`;
   }
@@ -152,7 +162,9 @@ export async function smartSearch(store: Parameters<typeof search>[0], question:
     const top = hits.slice(0, 15);
     try {
       const listing = top.map((h, i) => `${i + 1}. ${h.note.title} > ${h.chunk.heading}: ${h.chunk.snippet.slice(0, 300)}`).join("\n");
-      const order = parseOrder(await opts.llm.generate(RERANK_SYSTEM, `Question: ${question}\n\nResults:\n${listing}`), top.length);
+      const rerankPrompt = `Question: ${question}\n\nResults:\n${listing}`;
+      const raw = opts.llm.object ? JSON.stringify(await opts.llm.object(RERANK_SYSTEM, rerankPrompt, OrderShape)) : await opts.llm.generate(RERANK_SYSTEM, rerankPrompt);
+      const order = parseOrder(raw, top.length);
       if (order) {
         const ranked = order.map((n) => top[n - 1] as SearchHit);
         const rest = hits.filter((h) => !ranked.includes(h));
