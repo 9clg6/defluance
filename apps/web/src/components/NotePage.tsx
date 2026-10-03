@@ -1,15 +1,17 @@
 "use client";
 
-import { CircleDot, FolderInput, Lock, Pencil, Save, Trash2, Unlock } from "lucide-react";
+import { CircleDot, FolderInput, Lock, Pencil, Save, Sparkles, Trash2, Unlock } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AvatarGroup } from "@/components/arc/avatar-group/avatar-group";
 import { Breadcrumb } from "@/components/arc/breadcrumb/breadcrumb";
+import { AddLinkDialog } from "@/components/AddLinkDialog";
 import { AskPanel } from "@/components/AskPanel";
 import { StatusBadge, TypeBadge } from "@/components/badges";
 import { CreateNote } from "@/components/CreateNote";
 import { Editor } from "@/components/Editor";
+import { GenerateDialog } from "@/components/GenerateDialog";
 import { GraphView } from "@/components/GraphView";
 import { History } from "@/components/History";
 import { IssueDialog } from "@/components/IssueDialog";
@@ -23,6 +25,7 @@ import { useRefreshAll } from "@/hooks/use-keys";
 import { api, ApiError, errorMessage, idFromPath, noteApi, notePath, qs } from "@/lib/api";
 import { can, useAuth } from "@/lib/auth";
 import { relativeTime, splitFrontmatter, stripTitle } from "@/lib/frontmatter";
+import { replaceYText } from "@/lib/generate";
 import { useT } from "@/lib/i18n";
 import { useToast } from "@/lib/toast";
 import type { AuditEntry, NoteDetail, NoteLinks, Subgraph, VaultSchema, WriteResult } from "@/lib/types";
@@ -87,6 +90,10 @@ function Loaded({ id }: { id: string }) {
   const [discardOpen, setDiscardOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [addLinkOpen, setAddLinkOpen] = useState(false);
+  const [generate, setGenerate] = useState<{ instruction: string } | null>(null);
+  const briefTaken = useRef(false);
+  const brief = useSearchParams().get("generate");
   const [newPath, setNewPath] = useState(id);
   const [moving, setMoving] = useState(false);
   const [moveError, setMoveError] = useState<string>();
@@ -94,6 +101,8 @@ function Loaded({ id }: { id: string }) {
 
   const n = note.data;
   const writable = can(me, "write", n?.space);
+  // The language model only writes into drafts, never into private notes, and only when the server has one.
+  const canGenerate = writable && !!me?.capabilities.llm && n?.status === "draft" && !n.private && !n.locked;
 
   // Live editing: a shared document for public notes, when the server offers it. Private notes never are.
   const reloadAfterSave = async () => {
@@ -124,6 +133,37 @@ function Loaded({ id }: { id: string }) {
 
   const reload = async () => {
     await Promise.all([note.reload(), links.reload()]);
+  };
+
+  // A new note made with a brief opens the dialog with it: the model is only called when the person presses Generate.
+  useEffect(() => {
+    if (!brief || briefTaken.current || tab !== "edit" || !canGenerate || waiting) return;
+    briefTaken.current = true;
+    setGenerate({ instruction: brief });
+    const url = new URL(window.location.href);
+    url.searchParams.delete("generate");
+    window.history.replaceState(null, "", url);
+  }, [brief, tab, canGenerate, waiting]);
+
+  /** The server changed the note's text (the link is in its frontmatter): an editor that holds the old text starts over from it. */
+  const addedLink = async () => {
+    await refreshAll();
+    if (!live && draft !== undefined) {
+      setDraft(undefined);
+      setEditorKey((k) => k + 1);
+    }
+  };
+
+  const editorText = live ? collab.text.toString() : (draft ?? n?.raw ?? "");
+  /** Put generated text in the editor without saving it. */
+  const applyGenerated = (content: string) => {
+    if (live) replaceYText(collab.text, content);
+    else {
+      setDraft(content);
+      setEditorKey((k) => k + 1);
+    }
+    setGenerate(null);
+    toast("ok", t("generate.applied"));
   };
 
   const save = async (overrideBase?: string) => {
@@ -340,6 +380,12 @@ function Loaded({ id }: { id: string }) {
                   <Button variant="outline" onClick={() => (live ? setDiscardOpen(true) : discard())} disabled={live && !dirty}>
                     {live ? t("collab.discard") : t("cancel")}
                   </Button>
+                  {canGenerate && (
+                    <Button variant="outline" onClick={() => setGenerate({ instruction: "" })}>
+                      <Sparkles className="size-4" aria-hidden />
+                      {t("generate.open")}
+                    </Button>
+                  )}
                   <span className="text-xs text-muted-foreground">{live ? t("collab.sharedHint") : t("note.saveHint")}</span>
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
@@ -463,7 +509,7 @@ function Loaded({ id }: { id: string }) {
           </Card>
         )}
         <Card>
-          {links.loading && !links.data ? <Spinner label={t("loading")} /> : links.data ? <LinksPanel links={links.data} /> : links.error ? <ErrorBox>{errorMessage(links.error)}</ErrorBox> : null}
+          {links.loading && !links.data ? <Spinner label={t("loading")} /> : links.data ? <LinksPanel links={links.data} onAdd={writable && !n.locked ? () => setAddLinkOpen(true) : undefined} addHint={dirty ? t("addlink.saveFirst") : undefined} /> : links.error ? <ErrorBox>{errorMessage(links.error)}</ErrorBox> : null}
         </Card>
         <Card>
           <h2 className="mb-2 text-sm font-semibold">{t("note.details")}</h2>
@@ -516,6 +562,8 @@ function Loaded({ id }: { id: string }) {
           </div>
         </DialogContent>
       </Dialog>
+      <AddLinkDialog id={id} linkTypes={schema.data?.linkTypes ?? []} open={addLinkOpen} onOpenChange={setAddLinkOpen} onAdded={() => void addedLink()} />
+      {generate && <GenerateDialog id={id} current={editorText} stored={n.raw} instruction={generate.instruction} onApply={applyGenerated} onClose={() => setGenerate(null)} />}
       <IssueDialog id={id} title={n.title} space={n.space} open={issueOpen} onOpenChange={setIssueOpen} onCreated={() => void links.reload()} />
     </div>
   );

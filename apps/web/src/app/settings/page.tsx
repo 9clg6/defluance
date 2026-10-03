@@ -1,9 +1,11 @@
 "use client";
 
-import { Check, Copy, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { CopyButton } from "@/components/CopyButton";
 import { KeysPanel } from "@/components/KeysPanel";
+import { TemplatesPanel } from "@/components/TemplatesPanel";
 import { Badge, Button, Card, ErrorBox, Field, Input, Select, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
 import { api, errorMessage, qs } from "@/lib/api";
@@ -15,25 +17,6 @@ import type { GithubStatus, IndexStatus, TokenRow } from "@/lib/types";
 
 const SCOPES = ["read", "write", "issues", "admin"] as const;
 const ROLES = ["reader", "editor", "admin"] as const;
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const { t } = useT();
-  const [done, setDone] = useState(false);
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={async () => {
-        await navigator.clipboard?.writeText(text);
-        setDone(true);
-        setTimeout(() => setDone(false), 2000);
-      }}
-    >
-      {done ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
-      {done ? t("copied") : label}
-    </Button>
-  );
-}
 
 function Tokens() {
   const { t, tr, lang } = useT();
@@ -386,7 +369,7 @@ function About() {
   );
 }
 
-const SETTINGS_TABS = ["tokens", "members", "github", "private", "about"];
+const SETTINGS_TABS = ["tokens", "members", "github", "private", "templates", "about"];
 
 export default function SettingsPage() {
   return (
@@ -409,12 +392,14 @@ function SettingsContent() {
           <TabsTrigger value="members">{t("settings.members")}</TabsTrigger>
           <TabsTrigger value="github">GitHub</TabsTrigger>
           <TabsTrigger value="private">{t("private.title")}</TabsTrigger>
+          <TabsTrigger value="templates">{t("settings.templates")}</TabsTrigger>
           <TabsTrigger value="about">{t("settings.about")}</TabsTrigger>
         </TabsList>
         <TabsContent value="tokens" className="pt-5"><Tokens /></TabsContent>
         <TabsContent value="members" className="pt-5"><Members /></TabsContent>
         <TabsContent value="github" className="pt-5"><Github /></TabsContent>
         <TabsContent value="private" className="pt-5"><KeysPanel /></TabsContent>
+        <TabsContent value="templates" className="pt-5"><TemplatesPanel /></TabsContent>
         <TabsContent value="about" className="pt-5"><About /></TabsContent>
       </Tabs>
     </div>

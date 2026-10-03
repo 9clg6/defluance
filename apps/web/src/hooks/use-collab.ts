@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { WebsocketProvider } from "y-websocket";
 import * as Y from "yjs";
+import { replaceYText } from "@/lib/generate";
 
 export type Awareness = WebsocketProvider["awareness"];
 
@@ -131,10 +132,7 @@ export function useCollab(id: string | null, o: { selfName: string | undefined; 
   const replace = (next: string) => {
     const l = live.current;
     if (!l) return;
-    l.text.doc?.transact(() => {
-      l.text.delete(0, l.text.length);
-      l.text.insert(0, next);
-    });
+    replaceYText(l.text, next);
   };
   return {
     ...state,

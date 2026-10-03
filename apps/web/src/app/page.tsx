@@ -7,6 +7,7 @@ import { Suspense, useState } from "react";
 import { AskPanel } from "@/components/AskPanel";
 import { StatusBadge, TypeBadge } from "@/components/badges";
 import { CreateNote } from "@/components/CreateNote";
+import { McpCard } from "@/components/McpCard";
 import { StatusChart } from "@/components/StatusChart";
 import { DraggableMarquee } from "@/components/block/draggable-marquee";
 import { FlipText } from "@/components/block/flip-text";
@@ -174,6 +175,8 @@ function HomeContent() {
               </p>
             </section>
           </div>
+
+          {can(me, "admin") && <McpCard />}
         </>
       )}
     </div>

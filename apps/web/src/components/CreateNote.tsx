@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Button, Dialog, DialogContent, ErrorBox, Field, Input, Select } from "@/components/ui";
+import { Button, Dialog, DialogContent, ErrorBox, Field, Input, Select, Textarea } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
 import { useKeys } from "@/hooks/use-keys";
 import { api, errorMessage, notePath } from "@/lib/api";
@@ -23,6 +23,7 @@ export function CreateNote({ open, onOpenChange, initialTitle }: { open: boolean
   const keys = useKeys(open);
   const [isPrivate, setIsPrivate] = useState(false);
   const [extra, setExtra] = useState<string[]>([]);
+  const [brief, setBrief] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const hasKey = (keys.data?.mine.length ?? 0) > 0;
@@ -32,6 +33,7 @@ export function CreateNote({ open, onOpenChange, initialTitle }: { open: boolean
     if (open) setTitle(initialTitle ?? "");
   }, [open, initialTitle]);
 
+  const canBrief = !!me.data?.capabilities.llm && !isPrivate;
   const writable = (me.data?.spaces ?? []).filter((s) => s.perms.includes("write"));
   const slug = slugFromTitle(title);
   const id = `${folder ? `${folder.replace(/^\/+|\/+$/g, "")}/` : ""}${slug}`;
@@ -43,7 +45,8 @@ export function CreateNote({ open, onOpenChange, initialTitle }: { open: boolean
       const r = await api.post<WriteResult>("/api/v1/notes", { type, title: title.trim(), id, ...(isPrivate ? { private: true, recipients: extra } : {}) });
       toast("ok", t("note.created", { id: r.id }));
       onOpenChange(false);
-      router.push(`${notePath(r.id)}?tab=edit`);
+      // With a brief the editor opens on the generate dialog, brief filled in (nothing is sent to the model yet).
+      router.push(`${notePath(r.id)}?tab=edit${brief.trim() && canBrief ? `&generate=${encodeURIComponent(brief.trim())}` : ""}`);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -78,6 +81,11 @@ export function CreateNote({ open, onOpenChange, initialTitle }: { open: boolean
           <Field label={t("note.folder")} id="new-folder" hint={writable.length ? t("note.folderHint", { spaces: writable.filter((s) => s.path).map((s) => s.path).join(", ") || "-" }) : undefined}>
             <Input id="new-folder" value={folder} onChange={(e) => setFolder(e.target.value)} placeholder={writable.find((s) => s.path)?.path ?? ""} />
           </Field>
+          {canBrief && (
+            <Field label={t("generate.brief")} id="new-brief" hint={t("generate.briefHint")}>
+              <Textarea id="new-brief" value={brief} onChange={(e) => setBrief(e.target.value)} rows={3} maxLength={500} />
+            </Field>
+          )}
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={isPrivate} disabled={!hasKey} onChange={(e) => setIsPrivate(e.target.checked)} />

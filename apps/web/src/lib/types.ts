@@ -268,3 +268,19 @@ export interface NoteStats {
   total: number;
   groups: { type: string; total: number; statuses: Record<string, number> }[];
 }
+
+/** What the language model wrote for a draft note. Nothing is saved: the person reviews it, then saves. */
+export interface GenerateResult {
+  content: string;
+  model: string;
+  grounded_on: { id: string; title: string }[];
+  links: { to: string; type: string }[];
+  warnings: string[];
+}
+
+export interface TemplateItem {
+  name: string;
+  /** Shipped with Defluance, replaced in the vault, or only in the vault. */
+  source: "builtin" | "override" | "vault";
+  content: string;
+}

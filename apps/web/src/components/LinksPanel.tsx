@@ -1,9 +1,9 @@
 "use client";
 
-import { GitPullRequest, CircleDot } from "lucide-react";
+import { CircleDot, GitPullRequest, Plus } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/badges";
-import { Badge } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { notePath } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import type { LinkView, NoteLinks } from "@/lib/types";
@@ -31,7 +31,8 @@ function GithubRef({ l }: { l: LinkView }) {
   );
 }
 
-export function LinksPanel({ links }: { links: NoteLinks }) {
+/** `onAdd` shows the Add link button (people who can write); `addHint` explains why it is disabled. */
+export function LinksPanel({ links, onAdd, addHint }: { links: NoteLinks; onAdd?: () => void; addHint?: string }) {
   const { t, tr } = useT();
   const out = Object.entries(links.outgoing);
   const inc = Object.entries(links.incoming);
@@ -39,9 +40,17 @@ export function LinksPanel({ links }: { links: NoteLinks }) {
   return (
     <div className="space-y-5">
       <section aria-labelledby="links-out">
-        <h3 id="links-out" className="mb-2 text-sm font-semibold">
-          {t("links.outgoing")}
-        </h3>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 id="links-out" className="text-sm font-semibold">
+            {t("links.outgoing")}
+          </h3>
+          {onAdd && (
+            <Button size="sm" variant="outline" onClick={onAdd} disabled={!!addHint} title={addHint}>
+              <Plus className="size-4" aria-hidden />
+              {t("addlink.add")}
+            </Button>
+          )}
+        </div>
         {out.length === 0 && <p className="text-sm text-muted-foreground">{t("links.none")}</p>}
         {out.map(([type, items]) => (
           <div key={type} className="mb-3">
