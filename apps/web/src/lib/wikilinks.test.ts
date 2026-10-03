@@ -41,7 +41,11 @@ describe("remarkWikilinks", () => {
     expect(JSON.stringify(run("[[ghost]]", []))).toContain('"url":"#broken"');
     const out = JSON.stringify(run("[[gh:acme/app#7|tracked_by]]", [gh]));
     expect(out).toContain("https://github.com/acme/app/issues/7#dfl-open");
-    expect(out).toContain("acme/app#7 · open");
+    expect(out).toContain("acme/app#7 T");
+    // not synced: still a link to GitHub, marked as such, never a broken link
+    const unsynced = JSON.stringify(run("[[gh:acme/app#12]] and [[gh:nonsense]]", []));
+    expect(unsynced).toContain("https://github.com/acme/app/issues/12#dfl-unsynced");
+    expect(unsynced).toContain('"url":"#broken"');
   });
 
   it("leaves code blocks and text without links alone", () => {

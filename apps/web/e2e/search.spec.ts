@@ -5,6 +5,7 @@ import { expectAccessible, signIn } from "./helpers";
 async function withCapabilities(page: Page, cap: object = { semantic: true, embedder: "local:test", llm: "mock:llm", deep: true }) {
   await page.route("**/api/v1/me", async (route) => {
     const res = await route.fetch();
+    if (!res.ok()) return route.fulfill({ response: res }); // before sign-in the answer is a 401: pass it through
     const body = await res.json();
     await route.fulfill({ response: res, json: { ...body, capabilities: cap } });
   });
@@ -194,6 +195,7 @@ test.describe("search status banners", () => {
     await withCapabilities(page);
     await page.route("**/api/v1/index/status", async (route) => {
       const res = await route.fetch();
+      if (!res.ok()) return route.fulfill({ response: res }); // before sign-in the answer is a 401: pass it through
       const body = await res.json();
       await route.fulfill({ response: res, json: { ...body, capabilities: { semantic: true, embedder: "local:test", llm: null, deep: false }, embedding: { running: true, done: 120, total: 400, error: null, pending: 280 } } });
     });
@@ -207,6 +209,7 @@ test.describe("search status banners", () => {
     await withCapabilities(page);
     await page.route("**/api/v1/index/status", async (route) => {
       const res = await route.fetch();
+      if (!res.ok()) return route.fulfill({ response: res }); // before sign-in the answer is a 401: pass it through
       const body = await res.json();
       await route.fulfill({ response: res, json: { ...body, capabilities: { semantic: true, embedder: "local:test", llm: null, deep: false }, embedding: { running: false, done: 0, total: 0, error: "model download failed", pending: 280 } } });
     });

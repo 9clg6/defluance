@@ -11,7 +11,7 @@ const fail = (e: unknown) => {
   return { isError: true as const, content: [{ type: "text" as const, text: message }] };
 };
 
-export const TOOL_NAMES = ["search", "read_note", "list_notes", "graph_neighbors", "graph_impact", "create_draft", "update_note", "link_notes", "create_issue", "ask"] as const;
+export const TOOL_NAMES = ["search", "read_note", "list_notes", "graph_neighbors", "graph_impact", "create_draft", "update_note", "link_notes", "create_issue", "search_github", "ask"] as const;
 
 /**
  * One MCP server per request, bound to the caller. Every tool goes through the same services as REST,
@@ -75,6 +75,10 @@ export function buildMcpServer(ctx: Ctx, actor: Actor, onCall?: (tool: string, o
   tool("create_issue", "Open a GitHub issue from a note and link it back as tracked_by.", {
     id: z.string(), repo: z.string().optional().describe("owner/repo, defaults to the space repository"), title: z.string().optional(), body: z.string().optional(), labels: z.array(z.string()).optional(),
   }, (a) => svc.createIssueFromNote(ctx, actor, a.id, a));
+  tool("search_github", "Find GitHub issues and pull requests cached for the repositories linked to your spaces, newest first. q is a number (12, #12) or words in the title, labels, author or key. Link one to a note with link_notes using gh:owner/repo#12.", {
+    q: z.string().optional(), repo: z.string().optional().describe("owner/repo"), kind: z.enum(["issue", "pull-request"]).optional(),
+    state: z.enum(["open", "closed", "merged"]).optional(), limit: z.number().int().min(1).max(100).optional(),
+  }, (a) => svc.listGithubItems(ctx, actor, a));
   tool("ask", "Answer a question from the notes. Every answer cites the notes it used, and the tool refuses when nothing supports an answer. deep lets the server's model search, read notes and follow links over several steps, for questions that span several specs.", {
     question: z.string().min(1), ...filters, deep: z.boolean().optional(),
   }, (a) => svc.askQuestion(ctx, actor, a.question, { type: a.type, status: a.status, space: a.space, tag: a.tag, deep: a.deep }));

@@ -58,7 +58,7 @@ export class MockGithub implements GithubPort {
   ) {}
 
   handlers(): Record<string, Handler> {
-    return { "github.resync": () => this.resync().then(() => undefined) };
+    return { "github.resync": (p) => this.resync((p as { repo?: string } | null)?.repo).then(() => undefined) };
   }
 
   async repos(): Promise<string[]> {
@@ -96,9 +96,10 @@ export class MockGithub implements GithubPort {
     return { status: 202, message: "mock: webhooks are ignored" };
   }
 
-  async resync(): Promise<{ issues: number; pulls: number }> {
-    for (const n of this.nodes) await this.ctx.store.upsertGhNode(n);
+  async resync(repo?: string): Promise<{ issues: number; pulls: number }> {
+    const nodes = repo ? this.nodes.filter((n) => n.key.toLowerCase().startsWith(`${repo.toLowerCase()}#`)) : this.nodes;
+    for (const n of nodes) await this.ctx.store.upsertGhNode(n);
     await this.ctx.store.bump();
-    return { issues: this.nodes.filter((n) => n.kind === "issue").length, pulls: this.nodes.filter((n) => n.kind === "pull-request").length };
+    return { issues: nodes.filter((n) => n.kind === "issue").length, pulls: nodes.filter((n) => n.kind === "pull-request").length };
   }
 }

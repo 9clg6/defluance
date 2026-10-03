@@ -5,6 +5,7 @@ import { expectAccessible, signIn, TOKEN } from "./helpers";
 async function withCapabilities(page: Page, cap: { llm: string | null; collab?: boolean }) {
   await page.route("**/api/v1/me", async (route) => {
     const res = await route.fetch();
+    if (!res.ok()) return route.fulfill({ response: res }); // before sign-in the answer is a 401: pass it through
     const body = await res.json();
     await route.fulfill({ response: res, json: { ...body, capabilities: { ...body.capabilities, ...cap } } });
   });

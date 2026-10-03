@@ -32,11 +32,11 @@ describe("MCP server", () => {
     expect(viaCookie.status).toBe(401);
   });
 
-  it("lists the 10 tools through a real MCP client", async () => {
+  it("lists the 11 tools through a real MCP client", async () => {
     const client = await connect(s.admin);
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
-    expect(tools).toHaveLength(10);
+    expect(tools).toHaveLength(11);
     expect(tools.find((t) => t.name === "create_draft")?.description).toContain("branch");
     await client.close();
   });

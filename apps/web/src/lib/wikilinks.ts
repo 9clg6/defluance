@@ -49,7 +49,10 @@ export function makeResolver(links: LinkView[]): (ref: WikiRef) => Resolved {
     if (ref.github) {
       const key = ref.target.replace(/^gh:/, "");
       const gh = hit?.github;
-      return { href: gh?.url ? `${gh.url}${GH_STATE_MARK}${gh.state}` : `#broken`, label: `${key}${gh ? ` · ${gh.state}` : ""}` };
+      if (gh?.url) return { href: `${gh.url}${GH_STATE_MARK}${gh.state}`, label: `${key} ${gh.title}`.trim() };
+      // Not synced yet: still a link to GitHub, which redirects `issues/n` to the pull request when it is one.
+      const m = /^([\w.-]+\/[\w.-]+)#(\d+)$/.exec(key);
+      return { href: m ? `https://github.com/${m[1]}/issues/${m[2]}${GH_STATE_MARK}unsynced` : "#broken", label: key };
     }
     if (hit?.note) return { href: notePath(hit.note.id, ref.heading), label: ref.alias && !isTypeAlias(ref.alias) ? ref.alias : (hit.note.title || ref.target) };
     return { href: "#broken", label: ref.alias && !isTypeAlias(ref.alias) ? ref.alias : ref.target };

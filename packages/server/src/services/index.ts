@@ -9,3 +9,4 @@ export * from "./drafts.js";
 export * from "./files.js";
 export * from "./generate.js";
 export * from "./templates.js";
+export * from "./github.js";

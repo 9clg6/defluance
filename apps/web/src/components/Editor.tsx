@@ -12,7 +12,9 @@ import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import * as Y from "yjs";
 import type { Awareness } from "@/hooks/use-collab";
 import { api, qs, uploadFile } from "@/lib/api";
-import type { NoteSummary, SearchHit } from "@/lib/types";
+import { useT } from "@/lib/i18n";
+import { type GhLabels, ghOption, parseMention } from "@/lib/mention";
+import type { GhNode, NoteSummary, SearchHit } from "@/lib/types";
 
 const highlight = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "700", color: "var(--primary)" },
@@ -96,6 +98,72 @@ export function wikilinkSource(linkTypes: string[]) {
   };
 }
 
+let ghConfigured: { at: number; ok: boolean } | undefined;
+const ghCache = new Map<string, { at: number; items: GhNode[] }>();
+
+/** Forget what was fetched (tests). */
+export function resetGithubCache() {
+  ghConfigured = undefined;
+  ghCache.clear();
+}
+
+/** Is the GitHub connector on? Asked once, then remembered for a minute; a failed call counts as "no" without being remembered. */
+async function githubConfigured(): Promise<boolean> {
+  if (ghConfigured && Date.now() - ghConfigured.at < 60_000) return ghConfigured.ok;
+  try {
+    const s = await api.get<{ configured: boolean }>("/api/v1/github/status");
+    ghConfigured = { at: Date.now(), ok: s.configured };
+    return s.configured;
+  } catch {
+    return false;
+  }
+}
+
+async function githubItems(params: { q: string; kind?: GhNode["kind"] | undefined }, limit = 8): Promise<GhNode[]> {
+  const url = `/api/v1/github/items${qs({ q: params.q, kind: params.kind, limit })}`;
+  const hit = ghCache.get(url);
+  if (hit && Date.now() - hit.at < 30_000) return hit.items;
+  const { items } = await api.get<{ items: GhNode[] }>(url);
+  ghCache.set(url, { at: Date.now(), items });
+  return items;
+}
+
+/**
+ * `@` at the start of a line or after a space suggests GitHub issues and pull requests (`@pr`, `@issue`, or words, or a
+ * number). Choosing one inserts `[[gh:owner/repo#12]]`: the `[[` completion offers link types after a `|`.
+ */
+export function mentionSource(labels: () => GhLabels, debounceMs = 200) {
+  return async (ctx: CompletionContext): Promise<CompletionResult | null> => {
+    const line = ctx.state.doc.lineAt(ctx.pos);
+    const m = parseMention(line.text.slice(0, ctx.pos - line.from));
+    if (!m) return null;
+    // One request per pause in typing: the next keystroke aborts this one.
+    await new Promise<void>((r) => setTimeout(r, debounceMs));
+    if (ctx.aborted) return null;
+    let items: GhNode[];
+    try {
+      if (!(await githubConfigured())) return null;
+      items = await githubItems(m);
+    } catch {
+      return null;
+    }
+    if (ctx.aborted || !items.length) return null;
+    return {
+      from: line.from + m.from,
+      filter: false,
+      options: items.map((n) => {
+        const o = ghOption(n, labels());
+        return {
+          label: o.label,
+          detail: o.detail,
+          type: "text",
+          apply: (view, _c, from, to) => view.dispatch({ changes: { from, to, insert: o.insert }, selection: { anchor: from + o.insert.length } }),
+        };
+      }),
+    };
+  };
+}
+
 /**
  * `collab` binds the editor to a shared document: remote cursors, and an undo that only undoes your own changes.
  * Without it the editor owns the text after mount, as before.
@@ -105,6 +173,9 @@ const attachable = (f: File) => /^image\/(png|jpeg|gif|webp)$|^application\/pdf$
 
 export function Editor({ value, onChange, onSave, linkTypes, label, collab, readOnly = false, noteId, onError }: { noteId?: string; onError?: (e: unknown) => void; value: string; onChange: (v: string) => void; onSave: () => void; linkTypes: string[]; label: string; collab?: { text: Y.Text; awareness: Awareness }; readOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
+  const { t } = useT();
+  const labelsRef = useRef<GhLabels>({ pr: "PR", issue: "issue", state: (s) => s });
+  labelsRef.current = { pr: t("gh.pr"), issue: t("gh.issue"), state: (s) => t(`gh.${s}`) };
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   onChangeRef.current = onChange;
@@ -152,7 +223,7 @@ export function Editor({ value, onChange, onSave, linkTypes, label, collab, read
             paste: (e, view) => takeFiles(e.clipboardData?.files, e, view),
             drop: (e, view) => takeFiles(e.dataTransfer?.files, e, view),
           }),
-          autocompletion({ override: [wikilinkSource(linkTypes)] }),
+          autocompletion({ override: [wikilinkSource(linkTypes), mentionSource(() => labelsRef.current)] }),
           keymap.of([
             { key: "Mod-s", preventDefault: true, run: () => (onSaveRef.current(), true) },
             ...defaultKeymap,

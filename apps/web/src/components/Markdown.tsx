@@ -73,7 +73,8 @@ function NoteEmbed({ target, links }: { target: string; links: LinkView[] }) {
   );
 }
 
-const STATE_STYLE: Record<string, string> = { open: "text-success", merged: "text-primary", closed: "text-muted-foreground" };
+const STATE_STYLE: Record<string, string> = { open: "text-success", merged: "text-primary", closed: "text-muted-foreground", unsynced: "text-muted-foreground" };
+const STATE_DOT: Record<string, string> = { open: "bg-success", merged: "bg-primary", closed: "bg-muted-foreground", unsynced: "bg-muted-foreground" };
 
 export function Markdown({ source, links, noteId }: { source: string; links: LinkView[]; noteId?: string }) {
   const { t } = useT();
@@ -115,8 +116,10 @@ export function Markdown({ source, links, noteId }: { source: string; links: Lin
         if (i !== -1) {
           const state = href.slice(i + GH_STATE_MARK.length);
           return (
-            <a href={href.slice(0, i)} target="_blank" rel="noopener noreferrer" className={cn("font-medium no-underline", STATE_STYLE[state])}>
-              {children}
+            <a href={href.slice(0, i)} target="_blank" rel="noopener noreferrer" className={cn("inline-flex items-baseline gap-1.5 font-medium no-underline", STATE_STYLE[state])}>
+              <span className={cn("inline-block size-2 rounded-full self-center", STATE_DOT[state])} aria-hidden />
+              <span>{children}</span>
+              <span className="text-xs font-normal text-muted-foreground">({t(`gh.${state}` as never)})</span>
             </a>
           );
         }

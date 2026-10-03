@@ -143,7 +143,7 @@ describe("defluance mcp (stdio, the real binary)", () => {
     await client.connect(new StdioClientTransport({ command: process.execPath, args: [BIN, "mcp", dir], env: { ...process.env, DFL_ACTOR: "claude-code" } as Record<string, string>, stderr: "pipe" }));
     try {
       const { tools } = await client.listTools();
-      expect(tools).toHaveLength(10);
+      expect(tools).toHaveLength(11);
       const json = (r: unknown) => JSON.parse(((r as { content: { text: string }[] }).content[0] as { text: string }).text);
       expect(json(await client.callTool({ name: "search", arguments: { query: "cookies expire" } }))[0].note.id).toBe("specs/sessions");
       expect(json(await client.callTool({ name: "read_note", arguments: { id: "specs/auth" } })).links.outgoing["depends_on"][0].target).toBe("sessions");

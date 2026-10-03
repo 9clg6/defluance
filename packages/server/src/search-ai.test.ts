@@ -130,7 +130,9 @@ describe("vectors computed in the background", () => {
   };
 
   it("text is searchable at once, meaning search follows as vectors arrive, and the status shows progress", async () => {
-    const s = await makeServer({ embedder: delayed() });
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    const s = await makeServer({ embedder: delayed({ hold }) });
     try {
       // right after start: words work, vectors are on their way
       const early = (await s.call("GET", "/api/v1/index/status")).body;
@@ -140,6 +142,7 @@ describe("vectors computed in the background", () => {
       expect(((await s.call("GET", "/api/v1/search?q=sessions&mode=keyword")).body as unknown[]).length).toBeGreaterThan(0);
       expect(((await s.call("GET", "/api/v1/search?q=sessions&mode=meaning")).body as unknown[]).length).toBe(0);
 
+      release();
       await s.ctx.embeddingDone;
       const done = (await s.call("GET", "/api/v1/index/status")).body;
       expect(done.embedding).toMatchObject({ running: false, pending: 0, error: null });

@@ -43,6 +43,16 @@ export interface GhNode {
   updated_at: string;
 }
 
+export interface GhFilter {
+  /** Restrict to these `owner/repo` (case-insensitive). An empty list matches nothing. */
+  repos?: string[] | undefined;
+  kind?: GhNode["kind"] | undefined;
+  state?: GhNode["state"] | undefined;
+  /** `12` or `#12` matches that number first; any text matches title, labels, author or key (case-insensitive). */
+  q?: string | undefined;
+  limit?: number | undefined;
+}
+
 export interface NoteFilter {
   space?: string | undefined;
   /** Restrict to these spaces (permissions). */
@@ -231,6 +241,49 @@ export class IndexStore {
   async ghNodes(keys: string[]): Promise<GhNode[]> {
     if (!keys.length) return [];
     const rows = await this.db.all(`SELECT * FROM gh_nodes WHERE key IN (${keys.map(() => "?").join(", ")})`, keys);
+    return rows.map(toGh);
+  }
+
+  /** Issues and pull requests, newest first. A number in `q` puts that number at the top. */
+  async listGhNodes(f: GhFilter = {}): Promise<GhNode[]> {
+    const esc = (v: string) => v.toLowerCase().replace(/[%_\\]/g, "\\$&");
+    const parts: string[] = [];
+    const params: string[] = [];
+    if (f.repos) {
+      if (f.repos.length === 0) parts.push("1 = 0");
+      else {
+        parts.push(`(${f.repos.map(() => "LOWER(key) LIKE ? ESCAPE '\\'").join(" OR ")})`);
+        params.push(...f.repos.map((r) => `${esc(r)}#%`));
+      }
+    }
+    for (const k of ["kind", "state"] as const) {
+      if (f[k]) {
+        parts.push(`${k} = ?`);
+        params.push(f[k] as string);
+      }
+    }
+    let order = "";
+    const orderParams: string[] = [];
+    const q = f.q?.trim().replace(/^@/, "");
+    if (q) {
+      const num = /^#?(\d+)$/.exec(q)?.[1];
+      const text = ["key", "title", "labels", "author"].map((c) => `LOWER(${c}) LIKE ? ESCAPE '\\'`).join(" OR ");
+      const t = `%${esc(q.replace(/^#/, ""))}%`;
+      if (num) {
+        parts.push(`(key LIKE ? ESCAPE '\\' OR ${text})`);
+        params.push(`%#${num}`, t, t, t, t);
+        order = "CASE WHEN key LIKE ? ESCAPE '\\' THEN 0 ELSE 1 END, ";
+        orderParams.push(`%#${num}`);
+      } else {
+        parts.push(`(${text})`);
+        params.push(t, t, t, t);
+      }
+    }
+    const limit = Math.min(Math.max(Math.trunc(f.limit ?? 20), 1), 100);
+    const rows = await this.db.all(
+      `SELECT * FROM gh_nodes${parts.length ? " WHERE " + parts.join(" AND ") : ""} ORDER BY ${order}updated_at DESC, key LIMIT ${limit}`,
+      [...params, ...orderParams],
+    );
     return rows.map(toGh);
   }
 

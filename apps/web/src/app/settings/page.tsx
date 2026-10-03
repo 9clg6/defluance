@@ -223,6 +223,71 @@ function Members() {
   );
 }
 
+/** The spaces (`""` for the default repositories) a repository is linked to. */
+const linkedSpaces = (s: GithubStatus, repo: string): string[] => {
+  const has = (list: string[]) => list.some((r) => r.toLowerCase() === repo.toLowerCase());
+  return [...(has(s.defaultRepos) ? [""] : []), ...s.spaces.filter((sp) => has(sp.repos)).map((sp) => sp.name)];
+};
+
+function GithubRepos({ s, isAdmin, reload }: { s: GithubStatus; isAdmin: boolean; reload: () => Promise<void> }) {
+  const { t } = useT();
+  const toast = useToast();
+  const [space, setSpace] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string>();
+  const [error, setError] = useState<string>();
+  const name = (sp: string) => sp || t("gh.defaultName");
+
+  const toggle = async (repo: string, sp: string, linked: boolean) => {
+    setBusy(repo);
+    setError(undefined);
+    try {
+      await api.put("/api/v1/github/repos", { repo, ...(sp ? { space: sp } : {}), linked });
+      toast("ok", t(linked ? "gh.linkOk" : "gh.unlinkOk", { repo }));
+      await reload();
+    } catch (e) {
+      setError(`${repo}: ${errorMessage(e)}`);
+    } finally {
+      setBusy(undefined);
+    }
+  };
+
+  return (
+    <section aria-labelledby="gh-repos-title" className="space-y-3">
+      <h3 id="gh-repos-title" className="text-sm font-semibold">{t("gh.repos")}</h3>
+      <p className="text-sm text-muted-foreground">{isAdmin ? t("gh.reposHelp") : `${t("gh.reposHelp")} ${t("gh.adminOnly")}`}</p>
+      {error && <ErrorBox>{error}</ErrorBox>}
+      {s.repos.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("gh.reposNone")}</p>
+      ) : (
+        <ul className="divide-y rounded-[var(--arc-radius-control)] border">
+          {s.repos.map((repo) => {
+            const linked = linkedSpaces(s, repo);
+            const chosen = space[repo] ?? linked[0] ?? "";
+            const isLinked = linked.includes(chosen);
+            return (
+              <li key={repo} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                <code className="font-medium">{repo}</code>
+                {linked.length ? <Badge tone="success">{t("gh.linked", { spaces: linked.map(name).join(", ") })}</Badge> : <Badge tone="muted">{t("gh.notLinked")}</Badge>}
+                {isAdmin && (
+                  <span className="ml-auto flex items-center gap-2">
+                    <Select aria-label={t("gh.space", { repo })} value={chosen} onChange={(e) => setSpace({ ...space, [repo]: e.target.value })} className="w-56">
+                      <option value="">{t("gh.noSpace")}</option>
+                      {s.spaces.map((sp) => <option key={sp.name} value={sp.name}>{sp.name}</option>)}
+                    </Select>
+                    <Button variant="outline" size="sm" disabled={busy === repo} aria-label={`${t(isLinked ? "gh.unlink" : "gh.link")} ${repo}`} onClick={() => void toggle(repo, chosen, !isLinked)}>
+                      {t(isLinked ? "gh.unlink" : "gh.link")}
+                    </Button>
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function Github() {
   const { t } = useT();
   const { me } = useAuth();
@@ -274,6 +339,8 @@ function Github() {
           </Button>
         )}
       </Card>
+
+      {s.configured && <GithubRepos s={s} isAdmin={!!me?.spaces.length && me.spaces.every((sp) => sp.perms.includes("admin"))} reload={gh.reload} />}
 
       <ol className="space-y-5">
         {step(1, t("gh.s1"), (

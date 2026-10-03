@@ -41,6 +41,7 @@ Over HTTP the token is the only credential: browser cookies are never accepted o
 | `create_draft` | A new note from the vault template |
 | `update_note` | Replace a note. Pass `base_commit` to avoid overwriting someone's edit |
 | `link_notes` | Add a typed link to a note or to `gh:owner/repo#12` |
+| `search_github` | Find cached GitHub issues and pull requests (`q`: a number or words, `repo`, `kind`, `state`, `limit`), newest first, only in repositories linked to spaces the token can read. Use the result with `link_notes` |
 | `create_issue` | Open a GitHub issue from a note and link it back |
 | `ask` | A cited answer, or a refusal when nothing supports one. `deep: true` lets the server's model search, read and follow links over several steps and returns the steps |
 

@@ -96,7 +96,7 @@ export class GithubService implements GithubPort {
   handlers(): Record<string, Handler> {
     return {
       "github.webhook": (p) => this.process(p as WebhookJob),
-      "github.resync": () => this.resync().then(() => undefined),
+      "github.resync": (p) => this.resync((p as { repo?: string } | null)?.repo).then(() => undefined),
     };
   }
 
@@ -167,10 +167,11 @@ export class GithubService implements GithubPort {
   }
 
   /** Re-read issues and pull requests changed since the last sync, for every repository the vault uses. */
-  async resync(): Promise<{ issues: number; pulls: number }> {
+  async resync(only?: string): Promise<{ issues: number; pulls: number }> {
     const config = await this.ctx.getConfig();
-    const repos = [...new Set([...config.repos, ...config.spaces.flatMap((s) => s.repos)])];
-    const since = (await this.ctx.store.getMeta("gh_last_sync")) || undefined;
+    // One repository (just linked): everything it has, and the global "since" marker stays untouched.
+    const repos = only ? [only] : [...new Set([...config.repos, ...config.spaces.flatMap((s) => s.repos)])];
+    const since = only ? undefined : (await this.ctx.store.getMeta("gh_last_sync")) || undefined;
     const startedAt = this.ctx.now().toISOString();
     let issues = 0;
     let pulls = 0;
@@ -183,7 +184,7 @@ export class GithubService implements GithubPort {
         else issues++;
       }
     }
-    await this.ctx.store.setMeta("gh_last_sync", startedAt);
+    if (!only) await this.ctx.store.setMeta("gh_last_sync", startedAt);
     await this.ctx.store.bump();
     return { issues, pulls };
   }

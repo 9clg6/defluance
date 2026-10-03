@@ -18,7 +18,7 @@ Open the address it prints. The first start prints a one-time sign-in link.
 | Everyone | Search by words, by meaning (any language) or with a language model in front, a graph view, history with diffs, an editor that commits, answers with citations |
 | Teams | Several people edit the same note at once and see each other, with nothing else to run ([live editing](docs/guide-live-editing.md)). Specs that must stay private are encrypted for the people you choose ([private notes](docs/guide-private-notes.md)) |
 | GitHub | Issues and pull requests are nodes of the graph. Open an issue from a spec. A merged pull request moves its specs from `approved` to `implemented`. See which specs a pull request touches |
-| AI agents | A [Model Context Protocol](https://modelcontextprotocol.io) server with 10 tools. Agents write drafts on a branch and cannot approve, every action is in the audit log |
+| AI agents | A [Model Context Protocol](https://modelcontextprotocol.io) server with 11 tools. Agents write drafts on a branch and cannot approve, every action is in the audit log |
 | Operators | One process, SQLite or Postgres, Docker image, Prometheus metrics, no lock-in: delete Defluance and your notes are still plain Markdown in git |
 
 ```mermaid
