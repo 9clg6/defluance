@@ -1,6 +1,9 @@
 import { defaultConfig } from "@defluance/vault-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { hashEmbedder, type Embedder } from "@defluance/shared";
+import { decryptNote, encryptNote, generateKeyPair } from "@defluance/vault-core";
 import { backfillEmbeddings, indexVault } from "./indexer.js";
 import { search } from "./search.js";
 import type { IndexStore } from "./store.js";
@@ -232,5 +235,80 @@ describe.each(dialects)("deferred embeddings (%s)", (dialect) => {
     const r = await backfillEmbeddings(store, e, { batch: 2, signal: ctl.signal, onProgress: (p) => { if (p.done >= 4) ctl.abort(); } });
     expect(r.done).toBe(4);
     expect((await store.counts()).pending).toBe(4);
+  });
+});
+
+describe.each(dialects)("encrypted notes (%s)", (dialect) => {
+  let store: IndexStore;
+  const vaults: { remove(): Promise<void> }[] = [];
+  beforeAll(async () => {
+    store = await openTestStore(dialect);
+  });
+  afterEach(async () => {
+    await resetStore(store);
+    await Promise.all(vaults.splice(0).map((v) => v.remove()));
+  });
+  afterAll(() => store.db.close());
+
+  const SECRET = "ZEBRAFISH-TOP-SECRET-7731";
+  const plain = `---\ntype: technical-spec\nstatus: draft\nowner: nadia\ntitle: Falcon acquisition\ntags: [m-and-a]\nlinks:\n  - "[[open-note|depends_on]]"\n---\n# Falcon acquisition\n\n${SECRET} price twelve million.\n`;
+
+  async function setup() {
+    const key = await generateKeyPair(2048);
+    const file = encryptNote(plain, [{ fp: key.fingerprint, publicKey: key.publicKey }]);
+    const v = await makeVault({ "secret/falcon.md": file, "open-note.md": note("note", "draft", "# Open\n\nPublic words.") });
+    vaults.push(v);
+    return { key, file, v };
+  }
+
+  it("the public index keeps a locked placeholder and none of the content", async () => {
+    const { v, key } = await setup();
+    const r = await indexVault(store, { root: v.root, embedder: hashEmbedder() });
+    expect(r).toMatchObject({ added: 2, locked: 1 });
+    const n = await store.getNote("secret/falcon");
+    expect(n).toMatchObject({ type: "technical-spec", status: "draft", owner: "nadia", title: "falcon", tags: [] });
+    expect((n?.frontmatter["encrypted"] as { recipients: { fp: string }[] }).recipients.map((x) => x.fp)).toEqual([key.fingerprint]);
+    expect(await store.edgesFrom("secret/falcon")).toEqual([]);
+    expect(await store.db.all("SELECT id FROM chunks WHERE note_id = ?", ["secret/falcon"])).toEqual([]);
+    // nothing derived from the text is anywhere in the database
+    const dump = JSON.stringify([
+      await store.db.all("SELECT * FROM notes"),
+      await store.db.all("SELECT * FROM chunks"),
+      await store.db.all("SELECT * FROM edges"),
+      await store.db.all("SELECT content_hash FROM notes"),
+    ]);
+    for (const leak of [SECRET, "Falcon", "twelve", "m-and-a", "open-note|depends"]) expect(dump.replace("Open", "")).not.toContain(leak.replace(/ /g, ""));
+    expect((await search(store, "zebrafish", { embedder: hashEmbedder() })).map((h) => h.note.id)).toEqual([]);
+    expect((await search(store, "falcon", { embedder: hashEmbedder() })).map((h) => h.note.id)).toEqual([]);
+  });
+
+  it("an unchanged encrypted file is skipped, a re-encrypted one is updated", async () => {
+    const { v, key, file } = await setup();
+    await indexVault(store, { root: v.root });
+    expect(await indexVault(store, { root: v.root })).toMatchObject({ unchanged: 2, locked: 0 });
+    await v.write("secret/falcon.md", encryptNote(plain, [{ fp: key.fingerprint, publicKey: key.publicKey }]));
+    expect(await indexVault(store, { root: v.root })).toMatchObject({ updated: 1, locked: 1 });
+    expect(file).not.toContain(SECRET);
+  });
+
+  it("a private index reads through a decrypting reader and finds the text", async () => {
+    const { v, key } = await setup();
+    const priv = await openTestStore(dialect);
+    try {
+      const read = async (p: string) => decryptNote(await readFile(join(v.root, p), "utf8"), key.privateKey, key.fingerprint);
+      const r = await indexVault(priv, { root: v.root, paths: ["secret/falcon.md"], read, embedder: hashEmbedder() });
+      expect(r).toMatchObject({ added: 1, locked: 0 });
+      const n = await priv.getNote("secret/falcon");
+      expect(n?.title).toBe("Falcon acquisition");
+      expect(n?.tags).toEqual(["m-and-a"]);
+      expect((await search(priv, "zebrafish", { embedder: hashEmbedder() }))[0]?.note.id).toBe("secret/falcon");
+      expect((await priv.edgesFrom("secret/falcon")).map((e) => e.to_ref)).toEqual(["open-note"]);
+      // a reader that fails (key locked) removes the note instead of leaving stale text
+      const fail = await indexVault(priv, { root: v.root, paths: ["secret/falcon.md"], read: async () => { throw new Error("locked"); } });
+      expect(fail.removed).toBe(1);
+      expect(await priv.getNote("secret/falcon")).toBeUndefined();
+    } finally {
+      await priv.db.close();
+    }
   });
 });

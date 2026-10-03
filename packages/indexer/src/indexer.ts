@@ -4,6 +4,7 @@ import type { Embedder } from "@defluance/shared";
 import {
   bodyOf,
   buildVault,
+  isEncrypted,
   defaultConfig,
   listMarkdown,
   parseNote,
@@ -28,6 +29,11 @@ export interface IndexOptions {
    * (a real model), off otherwise. Search works by words at once, by meaning as vectors arrive.
    */
   deferEmbeddings?: boolean;
+  /**
+   * Read a note's text. Default: the file. The private index passes a reader that decrypts, so the plaintext
+   * of an encrypted note only ever exists in that in-memory index.
+   */
+  read?: (path: string) => Promise<string>;
   /** Only (re)index these note paths (`specs/a.md`). Absent files are removed. Default: scan the whole vault. */
   paths?: string[];
   config?: VaultConfig;
@@ -44,6 +50,8 @@ export interface IndexReport {
   cacheHits: number;
   /** Chunks stored without a vector, waiting for `backfillEmbeddings`. */
   deferred: number;
+  /** Encrypted notes stored as locked placeholders: header only, no text. */
+  locked: number;
   full: boolean;
 }
 
@@ -134,7 +142,7 @@ export async function indexVault(store: IndexStore, opts: IndexOptions): Promise
     ? [...new Set((opts.paths as string[]).map((p) => p.split("\\").join("/")).filter((p) => p.toLowerCase().endsWith(".md") && !skipped(p)))]
     : await listMarkdown(root);
 
-  const report: IndexReport = { added: 0, updated: 0, removed: 0, unchanged: 0, chunks: 0, embedded: 0, cacheHits: 0, deferred: 0, full: !targeted };
+  const report: IndexReport = { added: 0, updated: 0, removed: 0, unchanged: 0, chunks: 0, embedded: 0, cacheHits: 0, deferred: 0, locked: 0, full: !targeted };
   const defer = !!embedder && (opts.deferEmbeddings ?? embedder.slow === true);
 
   type Prepared = { note: ParsedNote; hash: string; chunks: ReturnType<typeof chunkBody>; isNew: boolean };
@@ -145,7 +153,7 @@ export async function indexVault(store: IndexStore, opts: IndexOptions): Promise
   for (const path of files) {
     let raw: string;
     try {
-      raw = await readFile(join(root, path), "utf8");
+      raw = await (opts.read ? opts.read(path) : readFile(join(root, path), "utf8"));
     } catch {
       missing.push(path.replace(/\.md$/i, ""));
       continue;
@@ -158,6 +166,15 @@ export async function indexVault(store: IndexStore, opts: IndexOptions): Promise
       continue;
     }
     const note = parseNote(path, raw, opts.linkTypes ? { linkTypes: opts.linkTypes } : {});
+    if (isEncrypted(raw)) {
+      // Never index ciphertext, and never anything derived from it: only the public header (type, status, owner,
+      // recipients) is kept, under the file name as title. The text lives in the private index while a key is unlocked.
+      note.links = [];
+      note.headings = [];
+      report.locked++;
+      prepared.push({ note, hash, chunks: [], isNew: !known.has(id) });
+      continue;
+    }
     prepared.push({ note, hash, chunks: chunkBody(bodyOf(raw), note.title), isNew: !known.has(id) });
   }
 

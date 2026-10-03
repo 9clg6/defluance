@@ -6,3 +6,5 @@ export * from "./templates.js";
 export * from "./git.js";
 export * from "./config.js";
 export * from "./frontmatter.js";
+export * from "./crypto.js";
+export * from "./keyring.js";
