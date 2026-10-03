@@ -105,7 +105,7 @@ async function unlockLocal(fp: string | undefined, candidates: string[]): Promis
   try {
     return { key: await unprotectPrivateKey(key.protected, await passphrase(`Passphrase for ${key.label}: `)), fp: key.fp };
   } catch (e) {
-    if (e instanceof WrongPassphraseError) throw new Error("wrong passphrase");
+    if (e instanceof WrongPassphraseError) throw new Error("wrong passphrase", { cause: e });
     throw e;
   }
 }
@@ -193,7 +193,7 @@ export async function decryptCommand(ref: string, o: CryptoOptions, io: IO): Pro
   try {
     plain = decryptNote(raw, key, fp);
   } catch (e) {
-    if (e instanceof DecryptError) throw new Error(e.message);
+    if (e instanceof DecryptError) throw new Error(e.message, { cause: e });
     throw e;
   }
   if (o.write) {
