@@ -138,11 +138,12 @@ export function EditorToolbar({ active, disabled, actions, panel, setPanel, link
         <Sep />
         <Tb label={t("editor.undo")} shortcut="Mod+Z" onClick={actions.undo} {...btn}><Undo2 className="size-4" aria-hidden /></Tb>
         <Tb label={t("editor.redo")} shortcut="Mod+Shift+Z" onClick={actions.redo} {...btn}><Redo2 className="size-4" aria-hidden /></Tb>
-        <span className="ml-auto" />
-        {end}
-        {end ? <Sep /> : null}
-        {side && <Tb label={t("note.preview")} pressed={side.on} onClick={side.toggle} disabled={false}><PanelRight className="size-4" aria-hidden /></Tb>}
-        <Tb label={t("editor.source")} pressed={!preview} onClick={() => setPreview(!preview)} disabled={false}><FileCode className="size-4" aria-hidden /></Tb>
+        <div className="ml-auto flex items-center gap-1">
+          {side && <Tb label={t("note.preview")} pressed={side.on} onClick={side.toggle} disabled={false}><PanelRight className="size-4" aria-hidden /></Tb>}
+          <Tb label={t("editor.source")} pressed={!preview} onClick={() => setPreview(!preview)} disabled={false}><FileCode className="size-4" aria-hidden /></Tb>
+          {end ? <Sep /> : null}
+          {end}
+        </div>
       </div>
       {panel === "link" && <LinkPanel initial={linkUrl} onApply={(u) => { actions.link(u); setPanel(null); }} onClose={() => setPanel(null)} />}
       {panel === "note" && <NotePanel suggest={suggest} linkTypes={linkTypes} onPick={(id, type) => { actions.noteLink(id, type); setPanel(null); }} onClose={() => setPanel(null)} />}

@@ -412,6 +412,12 @@ export function Editor({ value, onChange, onSave, linkTypes, label, collab, read
           EditorView.contentAttributes.of({ "aria-label": label, "aria-multiline": "true" }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) onChangeRef.current(u.state.doc.toString());
+            // Text put in from outside (a generated draft, another person replacing everything) leaves the cursor at the
+            // very start, inside the frontmatter, which would open it: put it back below, as when the editor opens.
+            if (u.docChanged && previewRef.current && !u.view.hasFocus && u.state.selection.main.head === 0 && bodyStart(u.state) > 0) {
+              const view = u.view;
+              queueMicrotask(() => view.dispatch({ selection: EditorSelection.cursor(bodyStart(view.state)) }));
+            }
             if (u.docChanged || u.selectionSet) setActive([...md.activeFormats(u.state)].sort().join(","));
           }),
         ],

@@ -128,6 +128,17 @@ test.describe("generate with AI", () => {
     await expect(page.getByRole("textbox", { name: "Markdown editor" })).toContainText("Given a paid order");
   });
 
+  test("on a laptop screen the toolbar holds formatting, generating and saving on one row", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await withCapabilities(page, { llm: "mock:demo" });
+    await page.goto("/n/produit/refunds/?tab=edit");
+    const bar = page.getByRole("toolbar", { name: "Formatting" });
+    await expect(bar.getByRole("button", { name: "Save" })).toBeVisible();
+    await expect(bar.getByRole("button", { name: "Generate with AI" })).toBeVisible();
+    await expect(bar.getByRole("button", { name: "Discard changes" })).toBeVisible();
+    expect((await bar.boundingBox())?.height).toBeLessThan(56);
+  });
+
   for (const collab of [false, true]) {
     test(`a description given when creating a note becomes a first draft in the editor, with no second dialog (${collab ? "shared" : "solo"} editor)`, async ({ page, request }) => {
       await withCapabilities(page, { llm: "mock:demo", collab });
@@ -155,6 +166,9 @@ test.describe("generate with AI", () => {
         await expect(banner.getByRole("link", { name: "Sessions" })).toBeVisible();
         await expect(banner).toContainText("Check the 14 days against the policy.");
         await expectAccessible(page, "first draft banner");
+
+        // the inserted text leaves the frontmatter folded, as when the editor opens
+        await expect(editor.getByRole("button", { name: /Properties/ })).toBeVisible();
 
         // nothing is saved until the person saves
         const stored = (await (await request.get(`/api/v1/notes/${slug}`, { headers: auth })).json()) as { raw: string };

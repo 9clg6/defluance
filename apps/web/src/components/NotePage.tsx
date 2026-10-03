@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleDot, FolderInput, Link2, Lock, Save, SlidersHorizontal, Sparkles, Trash2, Unlock, type LucideIcon } from "lucide-react";
+import { CircleDot, FolderInput, Link2, Lock, Save, SlidersHorizontal, Sparkles, Trash2, Unlock, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type ComponentPropsWithoutRef, forwardRef, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -359,8 +359,9 @@ function Loaded({ id }: { id: string }) {
           {t("generate.open")}
         </Button>
       )}
-      <Button size="sm" variant="ghost" onClick={() => (live ? setDiscardOpen(true) : discard())} disabled={live && !dirty}>
-        {live ? t("collab.discard") : t("cancel")}
+      {/* an icon: the label is long, and one bar must hold everything on a laptop screen */}
+      <Button size="sm" variant="ghost" aria-label={live ? t("collab.discard") : t("cancel")} title={live ? t("collab.discard") : t("cancel")} onClick={() => (live ? setDiscardOpen(true) : discard())} disabled={live && !dirty}>
+        <X className="size-4" aria-hidden />
       </Button>
       <Button size="sm" onClick={() => void save()} disabled={saving || !dirty} title={live ? t("collab.sharedHint") : t("note.saveHint")}>
         <Save className="size-4" aria-hidden />
