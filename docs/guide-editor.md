@@ -19,6 +19,12 @@ Under the title, a row of chips holds what used to be the Actions column: the st
 - **Read tab**: the text has a comfortable column (about 52rem).
 - **Edit tab**: the editor takes the full width of the page (the page is wider for notes), with no column on its right.
 
+### Saving and generating
+
+Save, the button that drops unsaved changes and "Generate with AI" sit at the right end of the editor's toolbar, so there is one bar above the text. The status shows once, in the control that changes it; while you edit, the properties are the "Properties" line at the top of the editor.
+
+A note created with a description ("Describe what it should cover" in the New note dialog) gets its first draft at once: the language model writes into the editor and a banner says which model wrote it and what it was based on. Nothing is saved until you save, and "Remove the generated text" takes it out again. "Generate with AI" on an existing draft still shows a diff to review first, because there the text you already wrote matters.
+
 ### Preview
 
 The "Preview" button at the right end of the toolbar (pressed while the preview is shown) puts the rendered note beside the editor. It is off by default, and on by default when "Markdown source" is on, since raw Markdown is easier to write with the result in view. Once you press it, your choice is remembered in this browser.

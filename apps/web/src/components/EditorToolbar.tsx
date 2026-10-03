@@ -59,7 +59,9 @@ const Sep = () => <span className="mx-0.5 h-5 w-px self-center bg-border" aria-h
  * Formatting toolbar for the editor. It only calls `actions`: every one of them is a CodeMirror transaction, so the shared
  * text (Yjs) and the undo history see ordinary edits. `active` says which formats the cursor is in.
  */
-export function EditorToolbar({ active, disabled, actions, panel, setPanel, linkUrl, preview, setPreview, side, suggest, linkTypes, canUpload }: {
+export function EditorToolbar({ active, disabled, actions, panel, setPanel, linkUrl, preview, setPreview, side, end, suggest, linkTypes, canUpload }: {
+  /** What the page puts at the right end: saving, generating. */
+  end?: ReactNode;
   active: ReadonlySet<Format>;
   disabled: boolean;
   actions: ToolbarActions;
@@ -137,6 +139,8 @@ export function EditorToolbar({ active, disabled, actions, panel, setPanel, link
         <Tb label={t("editor.undo")} shortcut="Mod+Z" onClick={actions.undo} {...btn}><Undo2 className="size-4" aria-hidden /></Tb>
         <Tb label={t("editor.redo")} shortcut="Mod+Shift+Z" onClick={actions.redo} {...btn}><Redo2 className="size-4" aria-hidden /></Tb>
         <span className="ml-auto" />
+        {end}
+        {end ? <Sep /> : null}
         {side && <Tb label={t("note.preview")} pressed={side.on} onClick={side.toggle} disabled={false}><PanelRight className="size-4" aria-hidden /></Tb>}
         <Tb label={t("editor.source")} pressed={!preview} onClick={() => setPreview(!preview)} disabled={false}><FileCode className="size-4" aria-hidden /></Tb>
       </div>

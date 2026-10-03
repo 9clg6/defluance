@@ -586,7 +586,11 @@ export const en = {
   "generate.noModel": "No language model is available on this server.",
   "generate.forbidden": "You are not allowed to generate text for this note.",
   "generate.brief": "Describe what it should cover",
-  "generate.briefHint": "Optional. A language model will offer a first draft when the note opens.",
+  "generate.briefHint": "Optional. A language model writes a first draft into the editor. Nothing is saved until you save.",
+  "generate.autoBusy": "Writing a first draft from your description…",
+  "generate.autoDone": "First draft written by {model}. Read it, then save.",
+  "generate.autoKeep": "Keep it",
+  "generate.autoRemove": "Remove the generated text",
 
   // add a link
   "addlink.add": "Add link",
@@ -1218,7 +1222,11 @@ export const fr: Record<Key, string> = {
   "generate.noModel": "Aucun modèle de langage n'est disponible sur ce serveur.",
   "generate.forbidden": "Vous n'avez pas le droit de générer du texte pour cette note.",
   "generate.brief": "Décrivez ce qu'elle doit couvrir",
-  "generate.briefHint": "Facultatif. Un modèle de langage proposera un premier jet à l'ouverture de la note.",
+  "generate.briefHint": "Facultatif. Un modèle de langage écrit un premier jet dans l'éditeur. Rien n'est enregistré tant que vous n'enregistrez pas.",
+  "generate.autoBusy": "Rédaction d'un premier jet à partir de votre description…",
+  "generate.autoDone": "Premier jet écrit par {model}. Relisez-le, puis enregistrez.",
+  "generate.autoKeep": "Le garder",
+  "generate.autoRemove": "Retirer le texte généré",
 
   // ajouter un lien
   "addlink.add": "Ajouter un lien",

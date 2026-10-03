@@ -7,7 +7,7 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import * as Y from "yjs";
 import { EditorToolbar, type Panel, type ToolbarActions } from "@/components/EditorToolbar";
@@ -233,7 +233,7 @@ export function readPreview(): boolean {
  * Without it the editor owns the text after mount, as before. The text is Markdown all the way down: the toolbar and the
  * live preview only dispatch ordinary transactions and decorations.
  */
-export function Editor({ value, onChange, onSave, linkTypes, label, collab, readOnly = false, noteId, onError, side, onLivePreview }: { side?: { on: boolean; toggle: () => void }; onLivePreview?: (on: boolean) => void; noteId?: string; onError?: (e: unknown) => void; value: string; onChange: (v: string) => void; onSave: () => void; linkTypes: string[]; label: string; collab?: { text: Y.Text; awareness: Awareness }; readOnly?: boolean }) {
+export function Editor({ value, onChange, onSave, linkTypes, label, collab, readOnly = false, noteId, onError, side, onLivePreview, toolbarEnd }: { /** Buttons of the page (save, generate) at the right end of the toolbar. */ toolbarEnd?: ReactNode; side?: { on: boolean; toggle: () => void }; onLivePreview?: (on: boolean) => void; noteId?: string; onError?: (e: unknown) => void; value: string; onChange: (v: string) => void; onSave: () => void; linkTypes: string[]; label: string; collab?: { text: Y.Text; awareness: Awareness }; readOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const { t } = useT();
   const { me } = useAuth();
@@ -444,6 +444,7 @@ export function Editor({ value, onChange, onSave, linkTypes, label, collab, read
         preview={preview}
         setPreview={setPreview}
         side={side}
+        end={toolbarEnd}
         suggest={suggest}
         linkTypes={linkTypes}
         canUpload={!!noteId}

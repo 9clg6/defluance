@@ -128,25 +128,70 @@ test.describe("generate with AI", () => {
     await expect(page.getByRole("textbox", { name: "Markdown editor" })).toContainText("Given a paid order");
   });
 
-  test("a brief written when creating a note opens the dialog with it, without calling the model", async ({ page, request }) => {
+  for (const collab of [false, true]) {
+    test(`a description given when creating a note becomes a first draft in the editor, with no second dialog (${collab ? "shared" : "solo"} editor)`, async ({ page, request }) => {
+      await withCapabilities(page, { llm: "mock:demo", collab });
+      const slug = `first-draft-${collab ? "shared" : "solo"}`;
+      const auth = { authorization: `Bearer ${TOKEN}` };
+      const bodies = await stubGenerate(page, `---\ntype: note\nstatus: draft\nowner: e2e\n---\n\n# First draft ${collab ? "shared" : "solo"}\n`);
+      await page.goto("/");
+      await page.getByRole("button", { name: "New note" }).click();
+      const create = page.getByRole("dialog", { name: "New note" });
+      await create.getByLabel("Title").fill(`First draft ${collab ? "shared" : "solo"}`);
+      await create.getByLabel("Describe what it should cover").fill("Export of invoices as CSV");
+      await expectAccessible(page, "new note with a description");
+      await create.getByRole("button", { name: "Create" }).click();
+      try {
+        await expect(page).toHaveURL(/tab=edit/);
+        const editor = page.getByRole("textbox", { name: "Markdown editor" });
+        await expect(editor).toContainText("Given a paid order");
+        // the person already said what they want: no dialog asks again
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+        expect(bodies).toEqual([{ mode: "fill", instruction: "Export of invoices as CSV" }]);
+        await expect(page).not.toHaveURL(/generate=/); // taken once
+
+        const banner = page.getByRole("status").filter({ hasText: "First draft written by mock:demo" });
+        await expect(banner).toBeVisible();
+        await expect(banner.getByRole("link", { name: "Sessions" })).toBeVisible();
+        await expect(banner).toContainText("Check the 14 days against the policy.");
+        await expectAccessible(page, "first draft banner");
+
+        // nothing is saved until the person saves
+        const stored = (await (await request.get(`/api/v1/notes/${slug}`, { headers: auth })).json()) as { raw: string };
+        expect(stored.raw).not.toContain("Given a paid order");
+        await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
+
+        // and the text can be taken out again
+        await banner.getByRole("button", { name: "Remove the generated text" }).click();
+        await expect(editor).not.toContainText("Given a paid order");
+        await expect(banner).toHaveCount(0);
+
+        // a reload does not ask the model again
+        await page.reload();
+        await expect(page.getByRole("textbox", { name: "Markdown editor" })).toBeVisible();
+        expect(bodies).toHaveLength(1);
+      } finally {
+        await request.delete(`/api/v1/notes/${slug}`, { headers: auth });
+      }
+    });
+  }
+
+  test("a first draft that cannot be written says why and leaves the template in the editor", async ({ page, request }) => {
     await withCapabilities(page, { llm: "mock:demo", collab: false });
-    const bodies = await stubGenerate(page, "");
+    const auth = { authorization: `Bearer ${TOKEN}` };
+    await stubGenerate(page, "", { status: 503 });
     await page.goto("/");
     await page.getByRole("button", { name: "New note" }).click();
     const create = page.getByRole("dialog", { name: "New note" });
-    await create.getByLabel("Title").fill("Generate brief demo");
-    await create.getByLabel("Describe what it should cover").fill("Export of invoices as CSV");
-    await expectAccessible(page, "new note with a brief");
+    await create.getByLabel("Title").fill("First draft refused");
+    await create.getByLabel("Describe what it should cover").fill("Anything");
     await create.getByRole("button", { name: "Create" }).click();
     try {
-      await expect(page).toHaveURL(/tab=edit/);
-      const dialog = page.getByRole("dialog");
-      await expect(dialog.getByLabel("Instruction")).toHaveValue("Export of invoices as CSV");
-      await expect(dialog.getByRole("radio", { name: "Fill from template" })).toBeChecked();
-      expect(bodies).toEqual([]);
-      await expect(page).not.toHaveURL(/generate=/); // taken once
+      await expect(page.getByText("No language model is available on this server.")).toBeVisible();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.getByRole("textbox", { name: "Markdown editor" })).toContainText("First draft refused");
     } finally {
-      await request.delete("/api/v1/notes/generate-brief-demo", { headers: { authorization: `Bearer ${TOKEN}` } });
+      await request.delete("/api/v1/notes/first-draft-refused", { headers: auth });
     }
   });
 });

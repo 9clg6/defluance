@@ -32,7 +32,7 @@ import { useT } from "@/lib/i18n";
 import { readStoredSide, storeSide } from "@/lib/split";
 import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import type { AuditEntry, NoteDetail, NoteLinks, Subgraph, VaultSchema, WriteResult } from "@/lib/types";
+import type { AuditEntry, GenerateResult, NoteDetail, NoteLinks, Subgraph, VaultSchema, WriteResult } from "@/lib/types";
 
 type TabId = "read" | "edit" | "history" | "graph" | "ask" | "audit";
 const TABS: TabId[] = ["read", "edit", "history", "graph", "ask", "audit"];
@@ -57,6 +57,9 @@ const Chip = forwardRef<HTMLButtonElement, ComponentPropsWithoutRef<typeof Butto
   </Button>
 ));
 Chip.displayName = "Chip";
+
+/** The first draft of a note created with a description: written straight into the editor, without a dialog. */
+type AutoDraft = { state: "busy" } | { state: "done"; result: GenerateResult } | { state: "error"; message: string };
 
 export function NotePage() {
   const pathname = usePathname() ?? "/n/";
@@ -111,6 +114,7 @@ function Loaded({ id }: { id: string }) {
   const [sideChoice, setSideChoice] = useState(readStoredSide);
   const sideOn = sideChoice ?? !liveOn;
   const [generate, setGenerate] = useState<{ instruction: string } | null>(null);
+  const [auto, setAuto] = useState<AutoDraft | null>(null);
   const briefTaken = useRef(false);
   const brief = useSearchParams().get("generate");
   const [newPath, setNewPath] = useState(id);
@@ -154,15 +158,37 @@ function Loaded({ id }: { id: string }) {
     await Promise.all([note.reload(), links.reload()]);
   };
 
-  // A new note made with a brief opens the dialog with it: the model is only called when the person presses Generate.
+  /** Put text in the editor without saving it: through the shared document when the editor is shared. */
+  const putInEditor = (content: string) => {
+    if (live) replaceYText(collab.text, content);
+    else {
+      setDraft(content);
+      setEditorKey((k) => k + 1);
+    }
+  };
+  const putRef = useRef(putInEditor);
+  putRef.current = putInEditor;
+
+  // A note created with a description gets its first draft at once, in the editor. The person already said what they
+  // want: a second dialog asking again was one step too many. Nothing is saved, and the text can be taken out again.
   useEffect(() => {
-    if (!brief || briefTaken.current || tab !== "edit" || !canGenerate || waiting) return;
+    // Wait until the editor is the one that will stay: a shared one is not there on the first render, and text put in
+    // the local draft meanwhile would be dropped when it arrives.
+    const settling = !!me?.capabilities.collab && !!n && !n.private && (!collab || (!collab.synced && !collab.gaveUp));
+    if (!brief || briefTaken.current || tab !== "edit" || !canGenerate || settling) return;
     briefTaken.current = true;
-    setGenerate({ instruction: brief });
     const url = new URL(window.location.href);
     url.searchParams.delete("generate");
     window.history.replaceState(null, "", url);
-  }, [brief, tab, canGenerate, waiting]);
+    setAuto({ state: "busy" });
+    api
+      .post<GenerateResult>(`${noteApi(id)}/generate`, { mode: "fill", instruction: brief })
+      .then((result) => {
+        putRef.current(result.content);
+        setAuto({ state: "done", result });
+      })
+      .catch((e: unknown) => setAuto({ state: "error", message: e instanceof ApiError && e.status === 503 ? t("generate.noModel") : e instanceof ApiError && e.status === 403 ? t("generate.forbidden") : errorMessage(e) }));
+  }, [brief, tab, canGenerate, me, n, collab, id, t]);
 
   /** The server changed the note's text (the link is in its frontmatter): an editor that holds the old text starts over from it. */
   const addedLink = async () => {
@@ -174,15 +200,19 @@ function Loaded({ id }: { id: string }) {
   };
 
   const editorText = live ? collab.text.toString() : (draft ?? n?.raw ?? "");
-  /** Put generated text in the editor without saving it. */
   const applyGenerated = (content: string) => {
-    if (live) replaceYText(collab.text, content);
-    else {
-      setDraft(content);
-      setEditorKey((k) => k + 1);
-    }
+    putInEditor(content);
     setGenerate(null);
     toast("ok", t("generate.applied"));
+  };
+  /** Back to the note as it is saved: the first draft was not what the person wanted. */
+  const removeGenerated = () => {
+    if (live) collab.replace(collab.base ?? n?.raw ?? "");
+    else {
+      setDraft(n?.raw);
+      setEditorKey((k) => k + 1);
+    }
+    setAuto(null);
   };
 
   const save = async (overrideBase?: string) => {
@@ -318,38 +348,59 @@ function Loaded({ id }: { id: string }) {
     storeSide(!sideOn);
   };
   const flatIncoming = Object.values(links.data?.incoming ?? {}).flat().length;
+  // Someone who can change the status sees it once, in the control that changes it.
+  const statusEditable = writable && !!schema.data && !n.locked;
+  /** Saving and generating sit in the editor's toolbar: one bar above the text instead of two. */
+  const toolbarEnd = (
+    <>
+      {canGenerate && (
+        <Button size="sm" variant="ghost" onClick={() => setGenerate({ instruction: "" })}>
+          <Sparkles className="size-4" aria-hidden />
+          {t("generate.open")}
+        </Button>
+      )}
+      <Button size="sm" variant="ghost" onClick={() => (live ? setDiscardOpen(true) : discard())} disabled={live && !dirty}>
+        {live ? t("collab.discard") : t("cancel")}
+      </Button>
+      <Button size="sm" onClick={() => void save()} disabled={saving || !dirty} title={live ? t("collab.sharedHint") : t("note.saveHint")}>
+        <Save className="size-4" aria-hidden />
+        {t("note.save")}
+      </Button>
+    </>
+  );
 
   return (
     <div>
       <article className="min-w-0">
         <Breadcrumb ariaLabel={t("note.breadcrumb")} items={[{ label: t("vault.root"), href: "/vault/" }, ...n.id.split("/").slice(0, -1).map((part, i, all) => ({ label: part, href: `/vault/${qs({ q: `${all.slice(0, i + 1).join("/")}/` })}` })), { label: n.id.split("/").at(-1) ?? n.id }]} />
-        <header className="mb-4 mt-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <header className="mb-3 mt-3">
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">{n.title}</h1>
+          {/* One line: what the note is, who is in it, when it changed. The path is in the breadcrumb, the status in its own control. */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
             <TypeBadge type={n.type} />
-            <StatusBadge status={n.status} />
+            {!statusEditable && <StatusBadge status={n.status} />}
             {n.private && <PrivateBadge />}
             <Badge tone="muted">{n.space}</Badge>
             {n.tags.map((tag) => (
               <Badge key={tag} tone="muted">#{tag}</Badge>
             ))}
+            {collab && (
+              <>
+                <Badge key={collab.status} tone={collab.status === "connected" ? "success" : "muted"} title={collab.status === "connected" ? t("collab.sharedHint") : undefined}>
+                  {collab.status === "connected" ? t("collab.live") : collab.status === "connecting" ? t("collab.connecting") : t("collab.offline")}
+                </Badge>
+                {people.length > 0 && <AvatarGroup members={people.map((p) => ({ name: p.name, status: "online" as const }))} size="sm" label={`${t("collab.people")}: ${people.map((p) => p.name).join(", ")}`} />}
+              </>
+            )}
+            <p className="text-sm text-muted-foreground">
+              {n.owner ?? "—"} · {t("note.updated", { when: relativeTime(n.updated_at, lang) })}
+              {n.commit && <> · <code>{n.commit.slice(0, 7)}</code></>}
+            </p>
           </div>
-          <h1 className="mt-2 font-heading text-3xl font-semibold tracking-tight">{n.title}</h1>
-          {collab && (
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <Badge key={collab.status} tone={collab.status === "connected" ? "success" : "muted"}>
-                {collab.status === "connected" ? t("collab.live") : collab.status === "connecting" ? t("collab.connecting") : t("collab.offline")}
-              </Badge>
-              {people.length > 0 && <AvatarGroup members={people.map((p) => ({ name: p.name, status: "online" as const }))} size="sm" label={`${t("collab.people")}: ${people.map((p) => p.name).join(", ")}`} />}
-            </div>
-          )}
-          <p className="mt-1 text-sm text-muted-foreground">
-            {n.id} · {n.owner ?? "—"} · {t("note.updated", { when: relativeTime(n.updated_at, lang) })}
-            {n.commit && <> · <code>{n.commit.slice(0, 7)}</code></>}
-          </p>
         </header>
 
         <div role="group" aria-label={t("note.actions")} className="mb-5 flex flex-wrap items-center gap-2">
-          {writable && schema.data && !n.locked && (
+          {statusEditable && schema.data && (
             <Select aria-label={t("note.status")} className="!h-8 !w-auto !rounded-full !px-3 !pr-8 text-xs" value={n.status ?? ""} onChange={(e) => void changeStatus(e.target.value)}>
               {!n.status && <option value="" />}
               {schema.data.statuses.map((s) => <option key={s} value={s}>{t(`status.${s}` as never)}</option>)}
@@ -384,6 +435,7 @@ function Loaded({ id }: { id: string }) {
               {links.loading && !links.data ? <Spinner label={t("loading")} /> : links.data ? <LinksPanel links={links.data} onAdd={writable && !n.locked ? () => { setLinksOpen(false); setAddLinkOpen(true); } : undefined} addHint={dirty ? t("addlink.saveFirst") : undefined} /> : links.error ? <ErrorBox>{errorMessage(links.error)}</ErrorBox> : null}
             </PopoverContent>
           </Popover>
+          {tab !== "edit" && (
           <Popover open={propsOpen} onOpenChange={setPropsOpen}>
             <PopoverTrigger asChild>
               <Chip icon={SlidersHorizontal} label={t("note.properties")} />
@@ -401,6 +453,7 @@ function Loaded({ id }: { id: string }) {
               </dl>
             </PopoverContent>
           </Popover>
+          )}
         </div>
         {n.private && (
           <Card className="mb-5">
@@ -457,28 +510,45 @@ function Loaded({ id }: { id: string }) {
                   </div>
                 )}
                 {saveError && <ErrorBox>{saveError}</ErrorBox>}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button onClick={() => void save()} disabled={saving || !dirty}>
-                    <Save className="size-4" aria-hidden />
-                    {t("note.save")}
-                  </Button>
-                  <Button variant="outline" onClick={() => (live ? setDiscardOpen(true) : discard())} disabled={live && !dirty}>
-                    {live ? t("collab.discard") : t("cancel")}
-                  </Button>
-                  {canGenerate && (
-                    <Button variant="outline" onClick={() => setGenerate({ instruction: "" })}>
-                      <Sparkles className="size-4" aria-hidden />
-                      {t("generate.open")}
-                    </Button>
-                  )}
-                  <span className="text-xs text-muted-foreground">{live ? t("collab.sharedHint") : t("note.saveHint")}</span>
-                </div>
+                {auto?.state === "busy" && (
+                  <div className="rounded-lg border p-3">
+                    <Spinner label={t("generate.autoBusy")} />
+                  </div>
+                )}
+                {auto?.state === "error" && (
+                  <div className="space-y-2">
+                    <ErrorBox>{auto.message}</ErrorBox>
+                    <Button size="sm" variant="ghost" onClick={() => setAuto(null)}>{t("close")}</Button>
+                  </div>
+                )}
+                {auto?.state === "done" && (
+                  <div role="status" className="space-y-2 rounded-lg border p-3 text-sm">
+                    <p className="font-medium">{t("generate.autoDone", { model: auto.result.model })}</p>
+                    {auto.result.warnings.length > 0 && (
+                      <ul className="list-disc pl-5">
+                        {auto.result.warnings.map((w) => <li key={w}>{w}</li>)}
+                      </ul>
+                    )}
+                    {auto.result.grounded_on.length > 0 && (
+                      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span>{t("generate.grounded")}</span>
+                        {auto.result.grounded_on.map((g) => (
+                          <Link key={g.id} href={notePath(g.id)} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">{g.title}</Link>
+                        ))}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setAuto(null)}>{t("generate.autoKeep")}</Button>
+                      <Button size="sm" variant="ghost" onClick={removeGenerated}>{t("generate.autoRemove")}</Button>
+                    </div>
+                  </div>
+                )}
                 <SplitView
                   main={
                     live ? (
-                      <Editor key="live" noteId={id} onError={(e) => toast("error", errorMessage(e))} value="" collab={{ text: collab.text, awareness: collab.awareness }} onChange={() => undefined} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} side={{ on: sideOn, toggle }} onLivePreview={setLiveOn} />
+                      <Editor key="live" noteId={id} onError={(e) => toast("error", errorMessage(e))} value="" collab={{ text: collab.text, awareness: collab.awareness }} onChange={() => undefined} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} side={{ on: sideOn, toggle }} onLivePreview={setLiveOn} toolbarEnd={toolbarEnd} />
                     ) : (
-                      <Editor key={editorKey} noteId={id} onError={(e) => toast("error", errorMessage(e))} value={draft ?? ""} onChange={setDraft} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} side={{ on: sideOn, toggle }} onLivePreview={setLiveOn} />
+                      <Editor key={editorKey} noteId={id} onError={(e) => toast("error", errorMessage(e))} value={draft ?? ""} onChange={setDraft} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} side={{ on: sideOn, toggle }} onLivePreview={setLiveOn} toolbarEnd={toolbarEnd} />
                     )
                   }
                   side={

@@ -173,7 +173,8 @@ test.describe("editing", () => {
     await page.goto("/n/tech/webhooks/");
     await page.getByLabel("Status").selectOption("review");
     await expect(page.getByText("Status is now review")).toBeVisible();
-    await expect(page.getByText("In review").first()).toBeVisible();
+    // the status shows once, in the control that changes it
+    await expect(page.getByLabel("Status")).toHaveValue("review");
   });
 });
 
