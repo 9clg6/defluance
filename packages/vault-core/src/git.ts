@@ -121,3 +121,16 @@ export async function writeAndCommit(
   await g.commit(opts.message, [rel], { "--author": `${opts.author.name} <${opts.author.email}>` });
   return { commit: await head(repo) };
 }
+
+/** Fast-forward the current branch from `origin`. */
+export async function pull(repo: string): Promise<void> {
+  await git(repo).pull(["--ff-only"]);
+}
+
+/** Push HEAD (or a branch) to `origin`. No-op without a remote. */
+export async function pushToOrigin(repo: string, ref = "HEAD"): Promise<boolean> {
+  const g = git(repo);
+  if (!(await g.getRemotes()).some((r) => r.name === "origin")) return false;
+  await g.push(["origin", ref]);
+  return true;
+}

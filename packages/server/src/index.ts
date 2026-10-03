@@ -8,3 +8,5 @@ export * from "./ports.js";
 export * from "./server.js";
 export * as services from "./services.js";
 export * from "./system.js";
+export * from "./github/client.js";
+export * from "./github/service.js";

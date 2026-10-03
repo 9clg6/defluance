@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { createContext, indexNow, jobHandlers, type Ctx, type ContextOptions } from "./context.js";
+import { githubFromEnv } from "./github/service.js";
 import { PERMS } from "./system.js";
 
 export interface ServerOptions extends ContextOptions {
@@ -30,6 +31,7 @@ export async function ensureBootstrap(ctx: Ctx, env = process.env): Promise<stri
 
 export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const ctx = await createContext(opts);
+  ctx.github ??= githubFromEnv(ctx, opts.env ?? process.env);
   const bootstrapToken = await ensureBootstrap(ctx, opts.env ?? process.env);
   await ctx.jobs.recover();
   await indexNow(ctx);

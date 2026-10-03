@@ -78,7 +78,7 @@ describe("GitHub sign-in", () => {
     expect(session).toContain("dfl_session=");
     const me = await s.request("/api/v1/me", { headers: { cookie: session } });
     expect(await me.json()).toMatchObject({ kind: "user", name: "octo", spaces: [] });
-    expect((await s.request("/api/v1/notes", { headers: { cookie: session } }).then((r) => r.json())).items).toEqual([]);
+    expect(((await (await s.request("/api/v1/notes", { headers: { cookie: session } })).json()) as { items: unknown[] }).items).toEqual([]);
 
     await s.call("PUT", "/api/v1/spaces/produit/members", { body: { login: "octo", role: "editor" } });
     const spaces = (await (await s.request("/api/v1/spaces", { headers: { cookie: session } })).json()) as { name: string; perms: string[] }[];

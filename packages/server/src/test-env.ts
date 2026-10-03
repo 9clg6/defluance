@@ -33,7 +33,7 @@ export interface TestServer {
   cleanup(): Promise<void>;
 }
 
-export async function makeServer(o: { files?: Record<string, string>; github?: GithubPort | null; llm?: Llm | null; env?: Record<string, string>; fetch?: typeof fetch; uiDir?: string } = {}): Promise<TestServer> {
+export async function makeServer(o: { files?: Record<string, string>; github?: GithubPort | null | ((ctx: Ctx) => GithubPort); llm?: Llm | null; env?: Record<string, string>; fetch?: typeof fetch; uiDir?: string } = {}): Promise<TestServer> {
   const root = await mkdtemp(join(tmpdir(), "dfl-srv-"));
   for (const [p, c] of Object.entries(o.files ?? FILES)) {
     await mkdir(dirname(join(root, p)), { recursive: true });
@@ -49,11 +49,12 @@ export async function makeServer(o: { files?: Record<string, string>; github?: G
     env: { DFL_SESSION_SECRET: "test-secret-test-secret", DFL_PUBLIC_URL: "http://localhost:4000", ...(o.env ?? {}) },
     embedder: hashEmbedder(),
     llm: o.llm ?? null,
-    github: o.github ?? null,
+    github: typeof o.github === "function" ? null : (o.github ?? null),
     log: false,
     ...(o.fetch ? { fetch: o.fetch } : {}),
     ...(o.uiDir ? { uiDir: o.uiDir } : {}),
   });
+  if (typeof o.github === "function") ctx.github = o.github(ctx);
   await indexNow(ctx);
   const { app } = createApp(ctx);
   const admin = (await ctx.sys.createToken({ name: "admin", scopes: ["read", "write", "issues", "admin"], spaces: [], createdBy: "test" })).token;

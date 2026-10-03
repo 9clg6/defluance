@@ -186,6 +186,7 @@ export async function indexNow(ctx: Ctx, paths?: string[]): Promise<void> {
 
 export function jobHandlers(ctx: Ctx): Record<string, Handler> {
   return {
+    ...(ctx.github?.handlers?.() ?? {}),
     "index.incremental": async (p) => indexNow(ctx, (p as IndexPayload).paths),
     "index.full": async () => indexNow(ctx),
   };

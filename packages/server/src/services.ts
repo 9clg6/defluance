@@ -19,6 +19,7 @@ import {
   fileLog,
   lastCommitFor,
   parseNote,
+  pushToOrigin,
   readAt,
   renderTemplate,
   reposOf,
@@ -312,6 +313,7 @@ async function commit(
       ...(branch ? { branch } : {}),
     });
     if (!branch) await indexAfterWrite(ctx, [path]);
+    if (config.vaultPush) await pushToOrigin(ctx.root, branch ?? "HEAD").catch((e: unknown) => ctx.log({ msg: "push failed", error: String(e) }));
     await audit(ctx, actor, p.action, id, { branch, message: p.message, ...p.extra }, r.commit);
     return { id, commit: r.commit, branch, diagnostics: fields };
   } catch (e) {

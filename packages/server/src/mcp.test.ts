@@ -16,11 +16,12 @@ async function connect(token: string): Promise<Client> {
     fetch: ((url: string | URL, init?: RequestInit) => s.request(String(url), init)) as typeof fetch,
   });
   const client = new Client({ name: "test", version: "1.0.0" });
-  await client.connect(transport);
+  await client.connect(transport as never);
   return client;
 }
 
-const data = (r: { content: unknown }) => JSON.parse((r.content as { text: string }[])[0]?.text ?? "null");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const data = (r: any) => JSON.parse((r.content as { text: string }[])[0]?.text ?? "null");
 
 describe("MCP server", () => {
   it("refuses unauthenticated and cookie-authenticated requests", async () => {

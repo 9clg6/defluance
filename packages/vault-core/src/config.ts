@@ -16,12 +16,20 @@ export interface VaultConfig {
   repos: string[];
   /** `branch`: agent writes go to a branch. `direct`: committed on the current branch. */
   agentWriteMode: "branch" | "direct";
+  /** A merged pull request moves the notes it tracks from `approved` to `implemented`. */
+  deriveStatus: boolean;
+  /** Comment on pull requests with the specs they touch. */
+  prComments: boolean;
+  /** `owner/repo` hosting this vault: a push to it makes the server pull and re-index. */
+  vaultRepo: string | null;
+  /** Push to `origin` after each commit made by the server. */
+  vaultPush: boolean;
 }
 
 export const CONFIG_PATH = ".defluance/config.yaml";
 export const DEFAULT_SPACE = "default";
 
-export const defaultConfig: VaultConfig = { spaces: [], repos: [], agentWriteMode: "branch" };
+export const defaultConfig: VaultConfig = { spaces: [], repos: [], agentWriteMode: "branch", deriveStatus: true, prComments: false, vaultRepo: null, vaultPush: false };
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 
@@ -49,6 +57,10 @@ export async function loadConfig(root: string): Promise<VaultConfig> {
     spaces,
     repos: strings(data["repos"]),
     agentWriteMode: data["agent_write_mode"] === "direct" ? "direct" : "branch",
+    deriveStatus: data["derive_status"] !== false,
+    prComments: data["pr_comments"] === true,
+    vaultRepo: typeof data["vault_repo"] === "string" ? data["vault_repo"] : null,
+    vaultPush: data["vault_push"] === true,
   };
 }
 

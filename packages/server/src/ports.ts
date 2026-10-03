@@ -1,5 +1,9 @@
-/** What the server needs from the GitHub connector. Implemented by @defluance/github. */
+import type { Handler } from "@defluance/indexer";
+
+/** What the server needs from the GitHub connector. */
 export interface GithubPort {
+  /** Background jobs the connector registers (webhook processing, resync). */
+  handlers?(): Record<string, Handler>;
   /** `owner/repo` list the App is installed on. */
   repos(): Promise<string[]>;
   createIssue(repo: string, input: { title: string; body: string; labels?: string[] }): Promise<{ key: string; number: number; url: string }>;
