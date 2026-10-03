@@ -8,9 +8,13 @@ services:
     restart: unless-stopped
     mem_limit: 768m
     env_file: .env
+    environment:
+      # push to GitHub with the deploy key in ./ssh (see enable-vault-push.sh); unused without vault_push
+      GIT_SSH_COMMAND: ssh -i /home/node/.ssh/id_ed25519 -o UserKnownHostsFile=/home/node/.ssh/known_hosts -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes
     volumes:
       - ${VAULT_PATH:-/opt/defluance/vault}:/vault
       - data:/data
+      - ./ssh:/home/node/.ssh:ro
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

@@ -1,9 +1,9 @@
 # Runtime image for a host that cannot build the project (small VPS, other architecture):
 # the bundle in dist-npm/ is built beforehand by deploy.sh. Same runtime stage as the root Dockerfile.
 FROM node:22-slim
-# git is required: the vault is a git repository and every save is a commit.
+# git is required: the vault is a git repository and every save is a commit. ssh lets it push to GitHub with a deploy key.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git ca-certificates \
+ && apt-get install -y --no-install-recommends git openssh-client ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
  && git config --system safe.directory '*'
 ENV NODE_ENV=production
