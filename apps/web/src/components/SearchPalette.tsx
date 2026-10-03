@@ -43,7 +43,7 @@ export function SearchPalette({ open, onOpenChange, onCreate }: { open: boolean;
     router.push(path);
   };
 
-  const chip = (on: boolean) => cn("rounded-full border px-2.5 py-0.5 text-xs", on ? "border-primary bg-accent font-medium" : "text-muted-foreground hover:bg-muted");
+  const chip = (on: boolean) => cn("rounded-full border px-2.5 py-0.5 text-xs", on ? "border-primary bg-primary font-medium text-primary-foreground" : "text-muted-foreground hover:bg-muted");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -13,7 +13,7 @@ export function Marked({ text, terms }: { text: string; terms: string[] }) {
   return (
     <>
       {highlight(text, terms).map((s, i) => (
-        <Fragment key={i}>{s.hit ? <mark className="rounded bg-warning/25 px-0.5 text-foreground">{s.text}</mark> : s.text}</Fragment>
+        <Fragment key={i}>{s.hit ? <mark>{s.text}</mark> : s.text}</Fragment>
       ))}
     </>
   );

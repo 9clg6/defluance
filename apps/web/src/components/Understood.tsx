@@ -10,7 +10,7 @@ export function Understood({ u }: { u: U }) {
   const { t, tr } = useT();
   const filters = Object.entries(u.filters);
   return (
-    <section aria-label={t("search.understood")} className="rounded-xl border bg-accent/40 p-3 text-sm">
+    <section aria-label={t("search.understood")} className="rounded-xl border bg-muted p-3 text-sm">
       <p className="flex items-center gap-2 font-medium">
         <Sparkles className="size-4" aria-hidden />
         {t("search.understood")}
@@ -32,7 +32,7 @@ export function Understood({ u }: { u: U }) {
               <dt className="text-muted-foreground">{t("search.understood.filters")}</dt>
               {filters.map(([k, v]) => (
                 <dd key={k}>
-                  <Badge tone="primary">{k === "type" || k === "status" ? tr(k, v as string) : `${k}: ${v}`}</Badge>
+                  <Badge tone="muted">{k === "type" || k === "status" ? tr(k, v as string) : `${k}: ${v}`}</Badge>
                 </dd>
               ))}
             </div>

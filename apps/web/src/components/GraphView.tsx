@@ -52,8 +52,8 @@ export function GraphView({ graph, focusId, onOpen, height = 480 }: { graph: Sub
     [graph],
   );
 
-  const ink = dark ? "#e5e7eb" : "#111827";
-  const edge = dark ? "rgba(148,163,184,0.55)" : "rgba(71,85,105,0.5)";
+  const ink = dark ? "#f5f5f5" : "#171717";
+  const edge = dark ? "rgba(163,163,163,0.65)" : "rgba(82,82,82,0.6)";
   const types = [...new Set(graph.nodes.map((n) => n.type ?? "note"))];
 
   return (

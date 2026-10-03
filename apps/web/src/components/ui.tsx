@@ -11,7 +11,7 @@ const variants = {
   default: "bg-primary text-primary-foreground hover:opacity-90",
   outline: "border bg-card hover:bg-muted",
   ghost: "hover:bg-muted",
-  destructive: "bg-destructive text-background hover:opacity-90",
+  destructive: "bg-destructive text-destructive-foreground hover:opacity-90",
 } as const;
 const sizes = { sm: "h-8 px-3", md: "h-9 px-4", icon: "h-9 w-9" } as const;
 
@@ -51,11 +51,11 @@ export function Field({ label, id, hint, children }: { label: string; id: string
 
 export function Badge({ className, tone = "muted", ...p }: HTMLAttributes<HTMLSpanElement> & { tone?: "muted" | "primary" | "success" | "warning" | "destructive" }) {
   const tones = {
-    muted: "bg-muted text-foreground",
-    primary: "bg-accent text-foreground",
-    success: "bg-success/15 text-success",
-    warning: "bg-warning/15 text-warning",
-    destructive: "bg-destructive/15 text-destructive",
+    muted: "border bg-transparent text-foreground",
+    primary: "bg-primary text-primary-foreground",
+    success: "bg-success text-success-foreground",
+    warning: "bg-warning-solid text-black",
+    destructive: "bg-destructive text-destructive-foreground",
   };
   return <span className={cn("inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium", tones[tone], className)} {...p} />;
 }
@@ -79,7 +79,7 @@ export function Spinner({ label }: { label: string }) {
 
 export function ErrorBox({ children }: { children: ReactNode }) {
   return (
-    <div role="alert" className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div role="alert" className="rounded-lg border-2 border-destructive px-3 py-2 text-sm text-destructive">
       {children}
     </div>
   );

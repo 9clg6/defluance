@@ -194,7 +194,7 @@ function Loaded({ id }: { id: string }) {
             {writable && draft !== undefined && (
               <div className="space-y-3">
                 {conflict !== undefined && (
-                  <div role="alert" className="space-y-2 rounded-lg border border-warning/60 bg-warning/10 p-3 text-sm">
+                  <div role="alert" className="space-y-2 rounded-lg border-2 border-warning p-3 text-sm">
                     <p className="font-medium">{t("conflict.title")}</p>
                     <p>{t("conflict.body", { commit: conflict.slice(0, 7) })}</p>
                     <div className="flex flex-wrap gap-2">

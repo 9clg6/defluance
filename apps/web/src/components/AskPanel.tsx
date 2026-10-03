@@ -90,7 +90,7 @@ export function AskPanel({ scopeNote, initialQuestion, initialDeep }: { scopeNot
       {result && (
         <div className="space-y-3" aria-live="polite">
           {result.refused ? (
-            <p className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm">{t("ask.refused")}</p>
+            <p className="rounded-lg border-2 border-warning px-3 py-2 text-sm">{t("ask.refused")}</p>
           ) : (
             <>
               <p className="whitespace-pre-wrap leading-relaxed">{withMarkers(result.answer)}</p>

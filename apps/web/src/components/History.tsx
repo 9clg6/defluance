@@ -38,7 +38,7 @@ export function History({ id }: { id: string }) {
       <ol className="max-h-[32rem] space-y-1 overflow-y-auto" aria-label={t("history.commits")}>
         {commits.map((c) => (
           <li key={c.hash}>
-            <button type="button" aria-pressed={selected === c.hash} onClick={() => setSelected(c.hash)} className={cn("w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted", selected === c.hash && "border-primary bg-accent")}>
+            <button type="button" aria-pressed={selected === c.hash} onClick={() => setSelected(c.hash)} className={cn("w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted", selected === c.hash && "border-2 border-primary")}>
               <span className="block font-medium">{c.message}</span>
               <span className="block text-xs text-muted-foreground">
                 {c.author} · {relativeTime(c.date, lang)} · <code>{c.hash.slice(0, 7)}</code>
@@ -68,8 +68,8 @@ export function History({ id }: { id: string }) {
                     </tr>
                   ) : (
                     <tr key={i} className="align-top">
-                      {cell(r.left, r.kind === "del" || r.kind === "change" ? "bg-destructive/10" : "")}
-                      {cell(r.right, r.kind === "add" || r.kind === "change" ? "bg-success/10" : "")}
+                      {cell(r.left, r.kind === "del" || r.kind === "change" ? "border-l-4 border-destructive bg-destructive/20" : "")}
+                      {cell(r.right, r.kind === "add" || r.kind === "change" ? "border-l-4 border-success bg-success/20" : "")}
                     </tr>
                   ),
                 )}

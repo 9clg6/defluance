@@ -121,7 +121,7 @@ function Tokens() {
           {tokens.data?.map((tk) => (
             <li key={tk.id} className="flex flex-wrap items-center gap-2 rounded-xl border bg-card px-4 py-3 text-sm">
               <span className="font-medium">{tk.name}</span>
-              {tk.scopes.map((s) => <Badge key={s} tone="primary">{tr("perm", s)}</Badge>)}
+              {tk.scopes.map((s) => <Badge key={s} tone="muted">{tr("perm", s)}</Badge>)}
               <Badge tone="muted">{tk.spaces.length ? tk.spaces.join(", ") : t("tokens.allSpaces")}</Badge>
               <span className="text-xs text-muted-foreground">
                 {tk.last_used_at ? t("tokens.lastUsed", { when: relativeTime(tk.last_used_at, lang) }) : t("tokens.neverUsed")}
@@ -205,7 +205,7 @@ function Members() {
         {members.data?.map((m) => (
           <li key={m.login} className="flex items-center gap-3 rounded-xl border bg-card px-4 py-2 text-sm">
             <span className="font-medium">{m.login}</span>
-            <Badge tone="primary">{tr("role", m.role)}</Badge>
+            <Badge tone="muted">{tr("role", m.role)}</Badge>
             <Button
               variant="ghost"
               size="sm"
@@ -246,7 +246,7 @@ function Github() {
 
   const step = (n: number, title: string, body: React.ReactNode) => (
     <li className="flex gap-3">
-      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold" aria-hidden>{n}</span>
+      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground" aria-hidden>{n}</span>
       <div className="space-y-1 text-sm">
         <h3 className="font-medium">{title}</h3>
         {body}
