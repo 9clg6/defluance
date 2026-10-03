@@ -43,6 +43,32 @@ jobs:
           name: playwright-traces
           path: apps/web/test-results
 
+  cross-browser:
+    # The same flows on Chromium, Firefox, WebKit and a phone-sized WebKit, with the e2e framework (tester.army).
+    # Deterministic steps only: agent steps need a model key and run with `pnpm --filter @defluance/e2e test:agent`.
+    runs-on: ubuntu-latest
+    env:
+      E2E_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm --filter @defluance/e2e exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm --filter @defluance/e2e test:e2e --reporter list,junit
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-artifacts
+          path: |
+            apps/e2e/.e2e/artifacts
+            apps/e2e/.e2e/logs
+            apps/e2e/.e2e/junit.xml
+
   bench:
     # Fails when search, reads or indexing exceed the limits of the requirements (NFR-001, NFR-002).
     runs-on: ubuntu-latest

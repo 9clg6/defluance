@@ -1,0 +1,19 @@
+{
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "e2e": "^0.16.0",
+    "@e2e-dev/web": "^0.11.2",
+    "playwright": "^1.63.0",
+    "ai": "^7.0.0",
+    "typescript": "^6.0.0"
+  },
+  "scripts": {
+    "test:e2e": "e2e run --exclude-tag agent",
+    "test:agent": "e2e run --tag agent",
+    "list": "e2e list",
+    "typecheck": "tsc --noEmit"
+  },
+  "name": "@defluance/e2e",
+  "description": "Cross-browser end-to-end tests (tester.army e2e): deterministic flows on chromium, firefox and webkit, plus optional agent steps."
+}
