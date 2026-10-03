@@ -13,7 +13,7 @@ const schema = z.object({
   DFL_DEFAULT_ROLE: z.enum(["reader", "editor"]).optional(),
   DFL_ADMINS: csv,
   DFL_ALLOWED_ORIGINS: csv,
-  DFL_RATE_LIMIT: z.coerce.number().int().min(1).max(100_000).default(300),
+  DFL_RATE_LIMIT: z.coerce.number().int().min(0).max(100_000).default(300),
   GITHUB_OAUTH_CLIENT_ID: z.string().min(1).optional(),
   GITHUB_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
 });

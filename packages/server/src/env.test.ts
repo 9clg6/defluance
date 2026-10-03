@@ -10,6 +10,10 @@ describe("environment validation", () => {
     expect(e.DFL_ALLOWED_ORIGINS).toEqual(["https://a.example"]);
   });
 
+  it("lets 0 disable the rate limit, as documented", () => {
+    expect(parseEnv({ DFL_RATE_LIMIT: "0" }).DFL_RATE_LIMIT).toBe(0);
+  });
+
   it("treats empty variables as unset", () => {
     expect(parseEnv({ DFL_DEFAULT_ROLE: "", DFL_PUBLIC_URL: "" }).DFL_DEFAULT_ROLE).toBeUndefined();
   });
