@@ -171,6 +171,33 @@ mark {
 .prose-note th { background: var(--muted); }
 .prose-note hr { border: 0; border-top: 1px solid var(--border); }
 .prose-note img { max-width: 100%; border-radius: var(--radius); }
+.prose-note video { max-width: 100%; border-radius: var(--radius); }
+.prose-note audio { width: 100%; }
+.prose-note .note-tag { color: var(--muted-foreground); }
+
+/* Obsidian callouts: a card with a coloured edge. The colour says the kind; the title says it in words. No tints. */
+.prose-note .callout {
+  --callout: var(--primary);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--callout);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  padding: 0.6em 1em;
+}
+.prose-note .callout > * + * { margin-top: 0.6em; }
+.prose-note .callout-title { font-weight: 600; margin: 0; }
+.prose-note details.callout > summary { cursor: pointer; }
+.prose-note .callout-tip, .prose-note .callout-success, .prose-note .callout-check, .prose-note .callout-done { --callout: var(--success); }
+.prose-note .callout-warning, .prose-note .callout-caution, .prose-note .callout-attention { --callout: var(--warning-solid); }
+.prose-note .callout-danger, .prose-note .callout-error, .prose-note .callout-failure, .prose-note .callout-fail, .prose-note .callout-bug, .prose-note .callout-missing { --callout: var(--destructive); }
+.prose-note .callout-question, .prose-note .callout-help, .prose-note .callout-faq { --callout: #0d9488; }
+.prose-note .callout-example { --callout: #ea580c; }
+.prose-note .callout-quote, .prose-note .callout-cite { --callout: var(--muted-foreground); }
+
+/* a note shown inside another */
+.prose-note .note-embed { display: block; border: 1px solid var(--border); border-radius: var(--radius); padding: 0.6em 1em; background: var(--card); }
+.prose-note .note-embed-title { display: block; font-size: 0.8rem; color: var(--muted-foreground); margin-bottom: 0.4em; }
 
 /* CodeMirror */
 .cm-editor { background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: var(--radius); font-size: 0.9rem; }

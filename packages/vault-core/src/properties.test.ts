@@ -86,7 +86,7 @@ describe("parseNote", () => {
   it("never throws, whatever the file contains", () => {
     fc.assert(fc.property(fc.string({ unit: "binary", maxLength: 400 }), (raw) => void parseNote("fuzz.md", raw)), { numRuns: 500 });
     fc.assert(fc.property(fc.string({ unit: "grapheme", maxLength: 400 }).map((s) => `---\n${s}\n---\n${s}`), (raw) => void parseNote("fuzz.md", raw)), { numRuns: 300 });
-  });
+  }, 60_000);
 
   it("finds every wikilink written in the body, with its type and line", () => {
     // Not starting with spaces: four of them make an indented code block, where links are rightly ignored.

@@ -299,7 +299,7 @@ function Loaded({ id }: { id: string }) {
           </TabsList>
 
           <TabsContent value="read" className="pt-5">
-            <Markdown source={stripTitle(n.body, n.title)} links={flatLinks} />
+            <Markdown source={stripTitle(n.body, n.title)} links={flatLinks} noteId={id} />
           </TabsContent>
 
           <TabsContent value="edit" className="pt-5">
@@ -344,13 +344,13 @@ function Loaded({ id }: { id: string }) {
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
                   {live ? (
-                    <Editor key="live" value="" collab={{ text: collab.text, awareness: collab.awareness }} onChange={() => undefined} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} />
+                    <Editor key="live" noteId={id} onError={(e) => toast("error", errorMessage(e))} value="" collab={{ text: collab.text, awareness: collab.awareness }} onChange={() => undefined} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} />
                   ) : (
-                    <Editor key={editorKey} value={draft ?? ""} onChange={setDraft} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} />
+                    <Editor key={editorKey} noteId={id} onError={(e) => toast("error", errorMessage(e))} value={draft ?? ""} onChange={setDraft} onSave={() => void save()} linkTypes={schema.data?.linkTypes ?? []} label={t("note.editor")} />
                   )}
                   <div className="min-w-0 rounded-xl border p-4">
                     <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("note.preview")}</h2>
-                    <Markdown source={preview} links={flatLinks} />
+                    <Markdown source={preview} links={flatLinks} noteId={id} />
                   </div>
                 </div>
               </div>

@@ -11,7 +11,7 @@ import { useEffect, useRef } from "react";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import * as Y from "yjs";
 import type { Awareness } from "@/hooks/use-collab";
-import { api, qs } from "@/lib/api";
+import { api, qs, uploadFile } from "@/lib/api";
 import type { NoteSummary, SearchHit } from "@/lib/types";
 
 const highlight = HighlightStyle.define([
@@ -100,15 +100,41 @@ export function wikilinkSource(linkTypes: string[]) {
  * `collab` binds the editor to a shared document: remote cursors, and an undo that only undoes your own changes.
  * Without it the editor owns the text after mount, as before.
  */
-export function Editor({ value, onChange, onSave, linkTypes, label, collab, readOnly = false }: { value: string; onChange: (v: string) => void; onSave: () => void; linkTypes: string[]; label: string; collab?: { text: Y.Text; awareness: Awareness }; readOnly?: boolean }) {
+/** Files a person can drop or paste into a note: what the server accepts. */
+const attachable = (f: File) => /^image\/(png|jpeg|gif|webp)$|^application\/pdf$/.test(f.type);
+
+export function Editor({ value, onChange, onSave, linkTypes, label, collab, readOnly = false, noteId, onError }: { noteId?: string; onError?: (e: unknown) => void; value: string; onChange: (v: string) => void; onSave: () => void; linkTypes: string[]; label: string; collab?: { text: Y.Text; awareness: Awareness }; readOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+  const noteRef = useRef(noteId);
+  const errorRef = useRef(onError);
+  noteRef.current = noteId;
+  errorRef.current = onError;
 
   useEffect(() => {
     if (!host.current) return;
+    /** Upload dropped or pasted files and put their markdown where the cursor is. Other content is left to the editor. */
+    const takeFiles = (list: FileList | null | undefined, e: Event, view: EditorView) => {
+      const files = [...(list ?? [])].filter(attachable);
+      const note = noteRef.current;
+      if (!files.length || !note || readOnly) return false;
+      e.preventDefault();
+      void (async () => {
+        for (const f of files) {
+          try {
+            const up = await uploadFile(note, f);
+            const at = view.state.selection.main.head;
+            view.dispatch({ changes: { from: at, insert: `${up.markdown}\n` }, selection: { anchor: at + up.markdown.length + 1 } });
+          } catch (err) {
+            errorRef.current?.(err);
+          }
+        }
+      })();
+      return true;
+    };
     const view = new EditorView({
       parent: host.current,
       state: EditorState.create({
@@ -122,6 +148,10 @@ export function Editor({ value, onChange, onSave, linkTypes, label, collab, read
           markdown(),
           syntaxHighlighting(highlight),
           EditorView.lineWrapping,
+          EditorView.domEventHandlers({
+            paste: (e, view) => takeFiles(e.clipboardData?.files, e, view),
+            drop: (e, view) => takeFiles(e.dataTransfer?.files, e, view),
+          }),
           autocompletion({ override: [wikilinkSource(linkTypes)] }),
           keymap.of([
             { key: "Mod-s", preventDefault: true, run: () => (onSaveRef.current(), true) },

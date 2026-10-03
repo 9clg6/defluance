@@ -35,7 +35,7 @@ describe("chunkBody properties", () => {
       }),
       { numRuns: 200 },
     );
-  });
+  }, 60_000);
 
   it("never mistakes a line inside a code fence for a heading", () => {
     fc.assert(

@@ -37,6 +37,8 @@ export interface ParsedNote {
   frontmatterError?: string;
   headings: Heading[];
   links: Link[];
+  /** `#tags` written in the text, like Obsidian: not in code, and not a number such as `#123`. Without the `#`. */
+  inlineTags: string[];
 }
 
 export interface ParseOptions {
@@ -45,6 +47,8 @@ export interface ParseOptions {
 
 const ATTACHMENT = /\.(png|jpe?g|gif|svg|webp|avif|pdf|mp3|mp4|wav|webm|mov|ogg|csv)$/i;
 const WIKILINK = /\[\[([^[\]\n]+?)\]\]/g;
+/** A tag needs a letter first, and must start a word: `#idea`, `#team/backend`, not `#123`, `a#b` or `https://x/y#z`. */
+const INLINE_TAG = /(?<![\w/#&])#([\p{L}][\p{L}\p{N}_/-]*)/gu;
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
 const processor = unified().use(remarkParse).use(remarkGfm);
@@ -152,6 +156,7 @@ export function parseNote(path: string, raw: string, options: ParseOptions = {})
 
   const headings: Heading[] = [];
   const links: Link[] = frontmatterLinks(frontmatter, linkTypes);
+  const inlineTags = new Set<string>();
 
   // Walking the mdast tree skips code blocks and inline code for free.
   const walk = (node: MdNode): void => {
@@ -160,6 +165,7 @@ export function parseNote(path: string, raw: string, options: ParseOptions = {})
     if (node.type === "heading") {
       headings.push({ depth: node.depth ?? 1, text: plainText(node).trim(), line });
     } else if (node.type === "text" && node.value) {
+      for (const m of node.value.matchAll(INLINE_TAG)) inlineTags.add((m[1] as string).replace(/[/-]+$/, ""));
       for (const m of node.value.matchAll(WIKILINK)) {
         const upTo = node.value.slice(0, m.index);
         const extra = upTo.split("\n").length - 1;
@@ -175,7 +181,7 @@ export function parseNote(path: string, raw: string, options: ParseOptions = {})
   const h1 = headings.find((h) => h.depth === 1)?.text;
   const title = (typeof fmTitle === "string" && fmTitle) || h1 || posix.basename(id);
 
-  const note: ParsedNote = { id, path, title, frontmatter, headings, links };
+  const note: ParsedNote = { id, path, title, frontmatter, headings, links, inlineTags: [...inlineTags].sort() };
   if (frontmatterError) note.frontmatterError = frontmatterError;
   return note;
 }

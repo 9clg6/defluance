@@ -76,6 +76,21 @@ Types de lien par défaut : `implements`, `depends_on`, `supersedes`, `tested_by
 
 Dans `links:` du frontmatter, la forme objet `{ to, type }` est stricte : un type inconnu est une erreur. Dans le corps, un alias inconnu est supposé être un alias d'affichage Obsidian et ne produit qu'un avertissement.
 
+## Syntaxe Obsidian
+
+Ce que vous écrivez dans Obsidian s'affiche dans Defluance, sans conversion.
+
+| Écrit | Résultat |
+|---|---|
+| `![[attachments/schema.png]]`, `![[schema.png\|300]]` | image (largeur facultative) ; audio et vidéo s'affichent avec leur lecteur ; un PDF devient un lien |
+| `![[Autre fiche]]`, `![[Autre fiche#Titre]]` | la fiche, ou sa section, affichée à cet endroit (un seul niveau d'imbrication) |
+| `> [!warning] Titre` | encadré ; `[!note]`, `tip`, `warning`, `danger`, `question`, `example`, `quote`… ; `[!tip]-` le replie |
+| `==texte==` | surlignage |
+| `#tag`, `#a/b` | étiquette : indexée comme celles du frontmatter, filtrable |
+| `![alt](chemin.png)` | image relative à la fiche |
+
+Les pièces jointes vivent dans le vault, dans le dossier `attachments/` à côté de la fiche. On les ajoute en collant ou en déposant un fichier dans l'éditeur (`POST /api/v1/files`) : png, jpg, gif, webp et pdf, jusqu'à 10 Mo (le contenu est vérifié, pas seulement l'extension). Le nom reçoit un court condensé du contenu (le même fichier n'est stocké qu'une fois). Des svg, audio et vidéo ajoutés par git s'affichent aussi. Elles se lisent avec le droit de lecture sur l'espace de la fiche. Un SVG est servi dans un bac à sable : il ne peut pas exécuter de script.
+
 ## Règles de `defluance validate`
 
 | Règle | Niveau |

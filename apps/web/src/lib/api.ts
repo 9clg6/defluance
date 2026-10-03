@@ -38,6 +38,18 @@ export const api = {
   del: <T>(path: string) => request<T>("DELETE", path),
 };
 
+/** Send a file to a note: it is stored in the vault next to it. Returns the markdown that shows it. */
+export async function uploadFile(note: string, file: File): Promise<{ path: string; ref: string; markdown: string }> {
+  const form = new FormData();
+  form.set("note", note);
+  form.set("file", file);
+  const res = await fetch("/api/v1/files", { method: "POST", credentials: "same-origin", body: form });
+  if (res.ok) return res.json();
+  const problem = (await res.json().catch(() => ({}))) as { title?: string };
+  if (res.status === 401 && typeof window !== "undefined") window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+  throw new ApiError(res.status, problem.title ?? res.statusText);
+}
+
 export const qs = (params: Record<string, string | number | undefined | null>): string => {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== "") q.set(k, String(v));

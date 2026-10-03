@@ -14,7 +14,6 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { parseNote } from "./parse.js";
 
 /*
  * Hybrid encryption of a note.
@@ -218,7 +217,14 @@ const wrap = (dek: Buffer, r: Recipient) => publicEncrypt({ key: r.publicKey, oa
 export function encryptNote(plain: string, recipients: Recipient[]): string {
   const unique = [...new Map(recipients.map((r) => [r.fp, r])).values()];
   if (unique.length === 0) throw new Error("an encrypted note needs at least one recipient");
-  const inner = parseNote("x.md", plain).frontmatter;
+  // Only the header is needed: parsing the whole note would be slow for a large one.
+  let inner: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = parseYaml(FRONTMATTER.exec(plain)?.[1] ?? "");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) inner = parsed as Record<string, unknown>;
+  } catch {
+    // no readable frontmatter: nothing to keep in clear
+  }
   const head = { type: str(inner["type"]), status: str(inner["status"]), owner: str(inner["owner"]), v: ENCRYPTION_VERSION, cipher: CIPHER };
   const dek = randomBytes(32);
   const iv = randomBytes(12);

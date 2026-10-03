@@ -35,3 +35,15 @@ export async function scratchNote(base: string | undefined, title = 'Scratch not
   return id;
 }
 
+
+const PNG_1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+/** Store a small picture next to a note. Returns the markdown that shows it. */
+export async function uploadPicture(base: string | undefined, note: string): Promise<string> {
+  const form = new FormData();
+  form.set('note', note);
+  form.set('file', new File([Buffer.from(PNG_1x1, 'base64')], 'dot.png', { type: 'image/png' }));
+  const res = await fetch(new URL('/api/v1/files', base), { method: 'POST', headers: { authorization: `Bearer ${TOKEN}` }, body: form });
+  expect(res.ok).toBe(true);
+  return ((await res.json()) as { markdown: string }).markdown;
+}

@@ -112,6 +112,7 @@ export async function resolveEdges(store: IndexStore, root: string, db: Db = sto
     frontmatter: JSON.parse(r.frontmatter) as Record<string, unknown>,
     headings: JSON.parse(r.headings) as ParsedNote["headings"],
     links: [],
+    inlineTags: [],
   }));
   const vault = buildVault(root, notes);
   const edges = await db.all<{ id: string; from_note: string; to_ref: string; heading: string | null; link_type: string; to_note: string | null }>(
@@ -171,6 +172,7 @@ export async function indexVault(store: IndexStore, opts: IndexOptions): Promise
       // recipients) is kept, under the file name as title. The text lives in the private index while a key is unlocked.
       note.links = [];
       note.headings = [];
+      note.inlineTags = [];
       report.locked++;
       prepared.push({ note, hash, chunks: [], isNew: !known.has(id) });
       continue;
@@ -210,7 +212,8 @@ export async function indexVault(store: IndexStore, opts: IndexOptions): Promise
       await drop(note.id);
       const fm = note.frontmatter;
       const str = (k: string) => (typeof fm[k] === "string" ? (fm[k] as string) : null);
-      const tags = Array.isArray(fm["tags"]) ? fm["tags"].filter((t): t is string => typeof t === "string") : [];
+      // tags from the frontmatter, and `#tags` written in the text
+      const tags = [...new Set([...(Array.isArray(fm["tags"]) ? fm["tags"].filter((t): t is string => typeof t === "string") : []), ...note.inlineTags])];
       await tx.run(
         `INSERT INTO notes (id, path, space, type, status, owner, title, tags, frontmatter, headings, content_hash, commit_sha, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

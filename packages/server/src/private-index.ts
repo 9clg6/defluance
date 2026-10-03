@@ -105,6 +105,9 @@ export class PrivateIndex {
   }
 }
 
+/** Tags of a decrypted note: the frontmatter list and the `#tags` in its text, as for a plain note. */
+export const tagsOf = (n: PrivateNote): string[] => [...new Set([...(Array.isArray(n.parsed.frontmatter["tags"]) ? (n.parsed.frontmatter["tags"] as string[]) : []), ...n.parsed.inlineTags])];
+
 const matches = (n: PrivateNote, f: NoteFilter): boolean => {
   const r = n.row;
   if (f.space && r.space !== f.space) return false;
@@ -114,8 +117,7 @@ const matches = (n: PrivateNote, f: NoteFilter): boolean => {
   if (f.status && r.status !== f.status) return false;
   if (f.owner && r.owner !== f.owner) return false;
   if (f.tag) {
-    const tags = n.parsed.frontmatter["tags"];
-    if (!Array.isArray(tags) || !tags.includes(f.tag)) return false;
+    if (!tagsOf(n).includes(f.tag)) return false;
   }
   return true;
 };
@@ -175,7 +177,7 @@ export function searchPrivateSources(notes: PrivateNote[], query: string, f: Not
       const more = list.slice(1, passages).map((x) => toChunk(x.d));
       return {
         hit: {
-          note: { id: n.id, title: n.parsed.title, type: n.row.type, status: n.row.status, space: n.row.space, tags: Array.isArray(n.parsed.frontmatter["tags"]) ? (n.parsed.frontmatter["tags"] as string[]) : [] },
+          note: { id: n.id, title: n.parsed.title, type: n.row.type, status: n.row.status, space: n.row.space, tags: tagsOf(n) },
           chunk: toChunk(best.d),
           ...(more.length ? { more } : {}),
           score: best.score,

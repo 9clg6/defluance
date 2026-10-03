@@ -72,3 +72,19 @@ describe("frontmatter", () => {
     ]);
   });
 });
+
+describe("inline tags", () => {
+  const tags = (body: string) => parseNote("n.md", `---\ntype: note\n---\n${body}`).inlineTags;
+
+  it("finds #tags in the text, like Obsidian", () => {
+    expect(tags("An #idea for the #team/backend, also #ünïcode and #snake_case-1.")).toEqual(["idea", "snake_case-1", "team/backend", "ünïcode"]);
+  });
+
+  it("does not take numbers, anchors, URLs, headings or code for tags", () => {
+    expect(tags("Issue #123, [[note#Heading]], https://x.example/y#frag, a#b.\n\n# A heading\n\n`#inline`\n\n```\n#fenced\n```\n")).toEqual([]);
+  });
+
+  it("is empty for a note without any", () => {
+    expect(tags("Nothing here.")).toEqual([]);
+  });
+});

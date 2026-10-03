@@ -5,6 +5,9 @@
 - Private notes: encrypted per note for the people you choose (AES-256-GCM, keys wrapped with RSA-OAEP), keys protected by a passphrase and unlocked in memory with an idle timeout, searchable by words while unlocked, with recipients you can add and remove, and keys for agents bound to their tokens. Web UI, REST API, MCP and command line (`keys`, `encrypt`, `decrypt`, `share`). See `docs/guide-private-notes.md` for what it protects and what it cannot.
 - Editing a note together, live: cursors and names, a shared unsaved draft kept across restarts, conflicts reported rather than overwritten. Same process and port, nothing to configure. See `docs/guide-live-editing.md`.
 - The web UI now uses Arc UI components (buttons, badges, dialogs, tabs, toasts, cards, timeline, date range picker), in our colours.
+- Drafts: what an agent writes lands on its own branch. A person reviews the diff on the Drafts page, merges it (conflicts are reported, never forced), discards it, or opens a pull request. Agents cannot approve their own drafts.
+- Delete and rename notes (links that point at them are rewritten, with a warning first), a vault tree by folder, attachments (pictures, audio, video, PDF) pasted or dropped into the editor, and more of Obsidian's syntax: embedded notes and sections, callouts, highlights, inline `#tags`. See `docs/vault-format.md`.
+- Robustness: a broken `.defluance/config.yaml` or an unreadable note is reported in the index status instead of stopping the server; GitHub webhook deliveries are de-duplicated; the server checks the vault is writable before starting.
 - API answers are never cached (`Cache-Control: no-store`).
 
 - Security: Content-Security-Policy and other browser headers, request body limits (413), timeouts, response compression, request ids in logs and responses, environment validation at start. The architecture document had promised these headers before they existed.

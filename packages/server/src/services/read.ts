@@ -5,6 +5,7 @@ import { bodyOf, diff, fileLog, lastCommitFor, parseNote, readAt } from "@deflua
 import { type Actor } from "../auth.js";
 import { type Ctx } from "../context.js";
 import { HttpError, notFound } from "../errors.js";
+import { tagsOf } from "../private-index.js";
 import { isPrivateRow, keyLabels, lockReason, openPrivate, privateNotes, recipientsOfRow } from "./private.js";
 import { checkRev, readSpaces, requireNote } from "./shared.js";
 
@@ -38,8 +39,7 @@ async function summaries(ctx: Ctx, actor: Actor, rows: NoteRow[]): Promise<NoteS
   return out.map((s) => {
     const p = open.get(s.id);
     if (!p) return s;
-    const tags = p.parsed.frontmatter["tags"];
-    return { ...s, locked: false, title: p.parsed.title, tags: Array.isArray(tags) ? (tags as string[]) : [] };
+    return { ...s, locked: false, title: p.parsed.title, tags: tagsOf(p) };
   });
 }
 
@@ -99,8 +99,7 @@ async function privateNote(ctx: Ctx, actor: Actor, note: NoteRow, raw: string, r
   try {
     const { plain, held } = await openPrivate(ctx, actor, raw);
     const parsed = parseNote(note.path, plain, { linkTypes: (await ctx.getSchema()).linkTypes });
-    const tags = parsed.frontmatter["tags"];
-    return { ...base, title: parsed.title, tags: Array.isArray(tags) ? (tags as string[]) : [], locked: false as const, unlocked_with: held.fp, frontmatter: parsed.frontmatter, headings: parsed.headings, body: bodyOf(plain), raw: plain };
+    return { ...base, title: parsed.title, tags: [...new Set([...(Array.isArray(parsed.frontmatter["tags"]) ? (parsed.frontmatter["tags"] as string[]) : []), ...parsed.inlineTags])], locked: false as const, unlocked_with: held.fp, frontmatter: parsed.frontmatter, headings: parsed.headings, body: bodyOf(plain), raw: plain };
   } catch (e) {
     if (!(e instanceof HttpError) || e.status !== 423) throw e;
     const why = await lockReason(ctx, actor, recipients.map((r) => r.fp));
