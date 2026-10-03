@@ -1,8 +1,10 @@
 "use client";
 
 import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { Alert as ArcAlert } from "@/components/arc/alert/alert";
 import { Badge as ArcBadge } from "@/components/arc/badge/badge";
 import { Button as ArcButton } from "@/components/arc/button/button";
+import { Skeleton as ArcSkeleton } from "@/components/arc/skeleton/skeleton";
 import { cn } from "@/lib/utils";
 
 // The building blocks of the UI. Buttons, badges, dialogs and tabs are Arc UI (https://uiarc.dev) components, wearing our
@@ -84,3 +86,17 @@ export function ErrorBox({ children }: { children: ReactNode }) {
 export { Dialog, DialogClose, DialogTrigger } from "@/components/arc/dialog/dialog";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/arc/tabs/tabs";
 export { DialogContent } from "@/components/arc/dialog/dialog";
+
+// ---------------------------------------------------------------- page states (Arc UI)
+
+/** A page-level error: Arc alert, role=alert. Dialogs and forms keep ErrorBox. */
+export function PageAlert({ title, children }: { title: string; children?: ReactNode }) {
+  return <ArcAlert tone="danger" title={title}>{children}</ArcAlert>;
+}
+
+/** A page-level placeholder while data loads (role=status, named by `label`). */
+export function PageSkeleton({ label, lines = 3 }: { label: string; lines?: number }) {
+  return <ArcSkeleton label={label} lines={lines} />;
+}
+
+export { EmptyState } from "@/components/arc/empty-state/empty-state";

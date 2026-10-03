@@ -6,7 +6,7 @@ import { AnimatePresence, animate, motion, useIsPresent, useMotionValue, useRedu
 import { X } from "lucide-react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./toast.module.css";
-export interface ToastProps { title: string; description?: string; open?: boolean; onOpenChange?: (open: boolean) => void; duration?: number; }
+export interface ToastProps { tone?: "ok" | "error"; title: string; description?: string; open?: boolean; onOpenChange?: (open: boolean) => void; duration?: number; }
 
 const subscribeHydration = () => () => {};
 const exitFast: Transition = { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.standard] };
@@ -56,7 +56,7 @@ function HeightFrame({ reduce, morphKey, children }: { reduce: boolean | null; m
   </motion.div>;
 }
 
-export default function Toast({ title, description, open = true, onOpenChange, duration = 4500 }: ToastProps) {
+export default function Toast({ tone = "ok", title, description, open = true, onOpenChange, duration = 4500 }: ToastProps) {
   const reduce = useReducedMotion();
   // Toasts that mount after hydration rise in from their edge; server-rendered ones start settled.
   const hydrated = useSyncExternalStore(subscribeHydration, () => true, () => false);
@@ -117,7 +117,7 @@ export default function Toast({ title, description, open = true, onOpenChange, d
       {visible && <motion.div
         key="toast"
         ref={surface}
-        className={styles.toast}
+        className={styles.toast} data-tone={tone}
         role="status"
         aria-live="polite"
         aria-atomic="true"
@@ -134,7 +134,7 @@ export default function Toast({ title, description, open = true, onOpenChange, d
       >
         <span className={styles.icon} aria-hidden="true">
           <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round">
-            <motion.path d="M4 12.5l5 5L20 6.5" initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: motionTokens.duration.standard, ease: [...motionTokens.ease.enter], delay: .12 }} />
+            <motion.path d={tone === "error" ? "M6 6l12 12M18 6L6 18" : "M4 12.5l5 5L20 6.5"} initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: motionTokens.duration.standard, ease: [...motionTokens.ease.enter], delay: .12 }} />
           </svg>
         </span>
         {/* The copy column follows its content height, so a longer message grows the toast instead of snapping it. */}

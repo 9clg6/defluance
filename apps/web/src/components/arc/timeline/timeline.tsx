@@ -173,7 +173,8 @@ function TimelineRow({ row, last, expanded, onToggle, timeLabel, timeFull }: { r
   </motion.li>;
 }
 
-export function Timeline({ events, now, label, timeZone = "UTC", locale = "en-US", maxHeight, scrollToNew = true, defaultExpanded = [], headingLevel = 3, className }: TimelineProps) {
+export function Timeline({ events, now, label, timeZone = "UTC", locale = "en-US", maxHeight, scrollToNew = true, defaultExpanded = [], headingLevel = 3, className, copy }: TimelineProps & { copy?: { today?: string; yesterday?: string; update?: string; updates?: string; newUpdate?: string; relative?: (time: number, now: number) => { short: string; long: string } } }) {
+  const L = { today: "Today", yesterday: "Yesterday", update: "update", updates: "updates", newUpdate: "New update:", relative, ...copy };
   const reduced = useReducedMotionSafe();
   const id = useId();
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -184,7 +185,7 @@ export function Timeline({ events, now, label, timeZone = "UTC", locale = "en-US
   const [known, setKnown] = useState(() => ({ ids, set: new Set(events.map(event => event.id)), fresh: new Set<string>(), announcement: "" }));
   if (known.ids !== ids) {
     const added = events.filter(event => !known.set.has(event.id));
-    setKnown({ ids, set: new Set(events.map(event => event.id)), fresh: new Set([...known.fresh, ...added.map(event => event.id)]), announcement: added.length ? `New update: ${added.map(event => [event.actor, event.title].filter(Boolean).join(" ")).join(". ")}` : known.announcement });
+    setKnown({ ids, set: new Set(events.map(event => event.id)), fresh: new Set([...known.fresh, ...added.map(event => event.id)]), announcement: added.length ? `${L.newUpdate} ${added.map(event => [event.actor, event.title].filter(Boolean).join(" ")).join(". ")}` : known.announcement });
   }
   // The bottom edge feathers while more updates wait below, and clears once the end is in view.
   const trackRef = useRef<HTMLDivElement>(null);
@@ -217,8 +218,8 @@ export function Timeline({ events, now, label, timeZone = "UTC", locale = "en-US
       const day = dayKey(event.time, timeZone);
       byDay.set(day, [...(byDay.get(day) ?? []), { ...event, day }]);
     });
-    return [...byDay].map(([day, rows]) => ({ day, rows, label: day === today ? "Today" : day === yesterday ? "Yesterday" : heading.format(new Date(rows[0].time)) }));
-  }, [events, now, timeZone, locale]);
+    return [...byDay].map(([day, rows]) => ({ day, rows, label: day === today ? L.today : day === yesterday ? L.yesterday : heading.format(new Date(rows[0].time)) }));
+  }, [events, now, timeZone, locale, L.today, L.yesterday]);
   const formats = useMemo(() => ({
     clock: new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", timeZone }),
     full: new Intl.DateTimeFormat(locale, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone }),
@@ -256,14 +257,14 @@ export function Timeline({ events, now, label, timeZone = "UTC", locale = "en-US
           {groups.map(group => <DaySection key={group.day} id={`${id}-${group.day}`} fresh={!initialDays.has(group.day)} reduced={reduced}>
             <div className={styles.day} role="heading" aria-level={headingLevel} id={`${id}-${group.day}`}>
               <span>{group.label}</span>
-              <span className={styles.count} aria-hidden="true"><RollingCount value={group.rows.length} reduced={reduced} /> {group.rows.length === 1 ? "update" : "updates"}</span>
-              <span className={styles.srOnly}>{`, ${group.rows.length} ${group.rows.length === 1 ? "update" : "updates"}`}</span>
+              <span className={styles.count} aria-hidden="true"><RollingCount value={group.rows.length} reduced={reduced} /> {group.rows.length === 1 ? L.update : L.updates}</span>
+              <span className={styles.srOnly}>{`, ${group.rows.length} ${group.rows.length === 1 ? L.update : L.updates}`}</span>
             </div>
             <ol className={styles.list}>
               <AnimatePresence>
                 {group.rows.map((row, index) => {
-                  const today = group.label === "Today" && now - row.time < 12 * HOUR;
-                  const time = today ? relative(row.time, now) : { short: formats.clock.format(new Date(row.time)), long: "" };
+                  const today = group.label === L.today && now - row.time < 12 * HOUR;
+                  const time = today ? L.relative(row.time, now) : { short: formats.clock.format(new Date(row.time)), long: "" };
                   return <TimelineRow key={row.id} row={row} last={index === group.rows.length - 1} expanded={expanded.has(row.id)} onToggle={() => toggle(row.id)}
                     timeLabel={time.short} timeFull={today ? `${time.long}, ${formats.full.format(new Date(row.time))}` : formats.full.format(new Date(row.time))} />;
                 })}

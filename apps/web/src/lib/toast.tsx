@@ -1,12 +1,13 @@
 "use client";
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import ArcToast from "@/components/arc/toast/toast";
 
 interface Toast {
   id: number;
   kind: "ok" | "error";
   text: string;
+  open: boolean;
 }
 
 const Ctx = createContext<{ toast: (kind: Toast["kind"], text: string) => void }>({ toast: () => undefined });
@@ -14,18 +15,20 @@ const Ctx = createContext<{ toast: (kind: Toast["kind"], text: string) => void }
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Toast[]>([]);
   const toast = useCallback((kind: Toast["kind"], text: string) => {
-    const id = Date.now() + Math.random();
-    setItems((x) => [...x, { id, kind, text }]);
-    setTimeout(() => setItems((x) => x.filter((t) => t.id !== id)), kind === "error" ? 8000 : 4000);
+    setItems((x) => [...x, { id: Date.now() + Math.random(), kind, text, open: true }]);
+  }, []);
+  // closing keeps the toast mounted for its exit animation, then drops it
+  const close = useCallback((id: number) => {
+    setItems((x) => x.map((t) => (t.id === id ? { ...t, open: false } : t)));
+    setTimeout(() => setItems((x) => x.filter((t) => t.id !== id)), 600);
   }, []);
   return (
     <Ctx.Provider value={{ toast }}>
       {children}
-      <div aria-live="polite" role="status" className="pointer-events-none fixed bottom-4 right-4 z-[60] flex max-w-sm flex-col gap-2">
+      {/* each Arc toast is its own polite live region (role=status) */}
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2 [&>*]:pointer-events-auto">
         {items.map((t) => (
-          <div key={t.id} className={cn("pointer-events-auto rounded-lg border bg-card px-4 py-3 text-sm shadow-lg", t.kind === "error" ? "border-destructive text-destructive" : "text-foreground")}>
-            {t.text}
-          </div>
+          <ArcToast key={t.id} tone={t.kind} title={t.text} open={t.open} onOpenChange={(o) => !o && close(t.id)} duration={t.kind === "error" ? 8000 : 4000} />
         ))}
       </div>
     </Ctx.Provider>

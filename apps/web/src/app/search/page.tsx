@@ -7,7 +7,7 @@ import { Suspense, useMemo, useState } from "react";
 import { ModePicker } from "@/components/ModePicker";
 import { ResultCard } from "@/components/ResultCard";
 import { Understood } from "@/components/Understood";
-import { Button, ErrorBox, Input, Select, Spinner } from "@/components/ui";
+import { Button, EmptyState, Input, PageAlert, PageSkeleton, Select } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
 import { useSearch } from "@/hooks/use-search";
 import { useAuth } from "@/lib/auth";
@@ -86,14 +86,14 @@ function SearchContent() {
       </form>
 
       {results.understood && <Understood u={results.understood} />}
-      {results.error && <ErrorBox>{results.error}</ErrorBox>}
-      {results.loading && <Spinner label={t("loading")} />}
+      {results.error && <PageAlert title={t("error.title")}>{results.error}</PageAlert>}
+      {results.loading && <PageSkeleton label={t("loading")} lines={2} />}
       {!q.trim() && <p className="text-muted-foreground">{t("search.page.empty")}</p>}
 
       {q.trim() && !results.loading && !results.error && (
         <section aria-label={t("search.page.title")} aria-live="polite" className="space-y-3">
           <p className="text-sm text-muted-foreground">{t("search.page.count", { n: results.hits.length })}</p>
-          {results.hits.length === 0 && <p>{t("search.page.none")}</p>}
+          {results.hits.length === 0 && <EmptyState title={t("search.page.noneTitle")} description={t("search.page.noneHelp")} />}
           {results.hits.map((h) => (
             <ResultCard key={h.note.id} hit={h} terms={terms} />
           ))}

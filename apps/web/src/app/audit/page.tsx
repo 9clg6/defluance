@@ -2,19 +2,22 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Button, ErrorBox, Input, Spinner } from "@/components/ui";
+import DateRangePicker, { type DateRange, type DateRangePreset } from "@/components/arc/date-range-picker/date-range-picker";
+import { Button, EmptyState, Input, PageAlert, PageSkeleton } from "@/components/ui";
 import { api, errorMessage, notePath, qs } from "@/lib/api";
 import { relativeTime } from "@/lib/frontmatter";
 import { useT } from "@/lib/i18n";
 import type { AuditEntry } from "@/lib/types";
 
 const PAGE = 50;
+const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 
 export default function AuditPage() {
   const { t, lang } = useT();
   const [rows, setRows] = useState<AuditEntry[]>([]);
   const [filters, setFilters] = useState({ actor: "", action: "", target: "" });
   const [applied, setApplied] = useState(filters);
+  const [range, setRange] = useState<DateRange | null>(null);
   const [loading, setLoading] = useState(true);
   const [more, setMore] = useState(false);
   const [error, setError] = useState<string>();
@@ -24,7 +27,7 @@ export default function AuditPage() {
       setLoading(true);
       setError(undefined);
       try {
-        const page = await api.get<AuditEntry[]>(`/api/v1/audit${qs({ ...applied, before, limit: PAGE })}`);
+        const page = await api.get<AuditEntry[]>(`/api/v1/audit${qs({ ...applied, from: range?.start.toISOString(), to: range && addDays(range.end, 1).toISOString(), before, limit: PAGE })}`);
         setRows((r) => (reset ? page : [...r, ...page]));
         setMore(page.length === PAGE);
       } catch (e) {
@@ -33,12 +36,20 @@ export default function AuditPage() {
         setLoading(false);
       }
     },
-    [applied],
+    [applied, range],
   );
 
   useEffect(() => {
     void load(true);
   }, [load]);
+
+  const presets: DateRangePreset[] = [
+    { label: t("audit.dates.today"), range: (d) => ({ start: d, end: d }) },
+    { label: t("audit.dates.last7"), range: (d) => ({ start: addDays(d, -6), end: d }) },
+    { label: t("audit.dates.last30"), range: (d) => ({ start: addDays(d, -29), end: d }) },
+    { label: t("audit.dates.thisMonth"), range: (d) => ({ start: new Date(d.getFullYear(), d.getMonth(), 1), end: d }) },
+  ];
+  const copy = { previous: t("audit.dates.previous"), next: t("audit.dates.next"), presets: t("audit.dates.presets"), cancel: t("audit.dates.cancel"), apply: t("audit.dates.apply"), none: t("audit.dates.none"), day: t("audit.dates.day"), days: t("audit.dates.days"), start: t("audit.dates.start"), chooseEnd: t("audit.dates.chooseEnd"), pickEnd: t("audit.dates.pickEnd") };
 
   const field = (key: keyof typeof filters, label: string) => (
     <div>
@@ -55,9 +66,16 @@ export default function AuditPage() {
         {field("actor", t("audit.actor"))}
         {field("action", t("audit.action"))}
         {field("target", t("audit.target"))}
+        <div>
+          <span className="mb-1 block text-xs text-muted-foreground">{t("audit.dates")}</span>
+          <div className="flex items-center gap-2">
+            <DateRangePicker value={range} onChange={setRange} label={t("audit.dates")} placeholder={t("audit.dates.any")} presets={presets} locale={lang} weekStartsOn={lang === "fr" ? 1 : 0} months={1} copy={copy} />
+            {range && <Button type="button" variant="ghost" size="sm" onClick={() => setRange(null)}>{t("audit.dates.clear")}</Button>}
+          </div>
+        </div>
         <Button type="submit" variant="outline">{t("audit.filter")}</Button>
       </form>
-      {error && <ErrorBox>{error}</ErrorBox>}
+      {error && <PageAlert title={t("error.title")}>{error}</PageAlert>}
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full text-sm">
           <caption className="sr-only">{t("audit.title")}</caption>
@@ -77,12 +95,12 @@ export default function AuditPage() {
               </tr>
             ))}
             {!loading && rows.length === 0 && (
-              <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">{t("audit.none")}</td></tr>
+              <tr><td colSpan={5}><EmptyState title={t("audit.none")} description={t("audit.noneHelp")} /></td></tr>
             )}
           </tbody>
         </table>
       </div>
-      {loading && <Spinner label={t("loading")} />}
+      {loading && <PageSkeleton label={t("loading")} lines={2} />}
       {more && !loading && <Button variant="outline" onClick={() => void load(false, rows.at(-1)?.at)}>{t("audit.more")}</Button>}
     </div>
   );

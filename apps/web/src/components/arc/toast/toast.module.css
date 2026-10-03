@@ -13,6 +13,9 @@
   box-shadow: var(--arc-shadow-floating);
 }
 
+.toast[data-tone="error"] { border-color: var(--arc-danger); border-width: 2px; }
+.toast[data-tone="error"] .icon { border-color: var(--arc-danger); background: var(--arc-danger); color: var(--destructive-foreground); }
+
 .icon {
   display: grid;
   width: 1.875rem;
@@ -53,7 +56,8 @@
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .description {

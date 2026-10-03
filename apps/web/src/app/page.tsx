@@ -10,7 +10,8 @@ import { CreateNote } from "@/components/CreateNote";
 import { StatusChart } from "@/components/StatusChart";
 import { DraggableMarquee } from "@/components/block/draggable-marquee";
 import { FlipText } from "@/components/block/flip-text";
-import { Button, Card, Spinner } from "@/components/ui";
+import { MetricCard } from "@/components/arc/metric-card/metric-card";
+import { Button, Card, EmptyState, PageSkeleton } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
 import { notePath, qs } from "@/lib/api";
 import { can, useAuth } from "@/lib/auth";
@@ -56,19 +57,25 @@ function HomeContent() {
       </section>
 
       {empty ? (
-        <Card className="max-w-2xl space-y-3">
-          <h2 className="font-heading text-lg font-semibold">{t("home.emptyTitle")}</h2>
-          <p className="text-sm text-muted-foreground">{t("home.emptyBody")}</p>
-          <pre className="overflow-x-auto rounded-lg bg-muted p-3 text-sm"><code>{"defluance init\ndefluance new functional-spec \"My first spec\""}</code></pre>
-          {can(me, "write") && (
-            <>
-              <Button onClick={() => setCreateOpen(true)}>
-                <FilePlus className="size-4" aria-hidden />
-                {t("note.new")}
-              </Button>
-              <CreateNote open={createOpen} onOpenChange={setCreateOpen} />
-            </>
-          )}
+        <Card className="max-w-2xl">
+          <EmptyState
+            title={t("home.emptyTitle")}
+            description={t("home.emptyBody")}
+            action={
+              <div className="flex w-full flex-col items-center gap-3">
+                <pre className="max-w-full overflow-x-auto rounded-lg bg-muted p-3 text-left text-sm"><code>{"defluance init\ndefluance new functional-spec \"My first spec\""}</code></pre>
+                {can(me, "write") && (
+                  <>
+                    <Button onClick={() => setCreateOpen(true)}>
+                      <FilePlus className="size-4" aria-hidden />
+                      {t("note.new")}
+                    </Button>
+                    <CreateNote open={createOpen} onOpenChange={setCreateOpen} />
+                  </>
+                )}
+              </div>
+            }
+          />
         </Card>
       ) : (
         <>
@@ -76,19 +83,11 @@ function HomeContent() {
             <AskPanel key={`${ask ?? "free"}-${deep}`} initialQuestion={ask} initialDeep={deep} />
           </div>
 
-          <section aria-labelledby="stats" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <section aria-labelledby="stats" className="grid gap-3 sm:grid-cols-3">
             <h2 id="stats" className="sr-only">{t("home.stats")}</h2>
-            {[
-              [t("home.notes"), status.data?.notes],
-              [t("home.links"), status.data?.edges],
-              [t("home.passages"), status.data?.chunks],
-              [t("home.indexed"), status.data?.indexed_at ? relativeTime(status.data.indexed_at, lang) : "—"],
-            ].map(([label, value]) => (
-              <Card key={label as string}>
-                <p className="text-sm text-muted-foreground">{label}</p>
-                <p className="font-heading text-2xl font-semibold">{value ?? "…"}</p>
-              </Card>
-            ))}
+            <MetricCard label={t("home.notes")} value={status.data?.notes ?? 0} context={status.data?.indexed_at ? t("home.indexedAgo", { when: relativeTime(status.data.indexed_at, lang) }) : "…"} />
+            <MetricCard label={t("home.links")} value={status.data?.edges ?? 0} context={t("home.linksHelp")} />
+            <MetricCard label={t("home.passages")} value={status.data?.chunks ?? 0} context={t("home.passagesHelp")} />
           </section>
 
           {stats.data && stats.data.total > 0 && (
@@ -100,7 +99,7 @@ function HomeContent() {
 
           <section aria-labelledby="recent" className="space-y-3">
             <h2 id="recent" className="font-heading text-xl font-semibold">{t("home.recent")}</h2>
-            {recent.loading && <Spinner label={t("loading")} />}
+            {recent.loading && <PageSkeleton label={t("loading")} lines={2} />}
             {notes.length >= 4 ? (
               <DraggableMarquee
                 items={notes.map((n) => ({ id: n.id, src: n.id }))}
@@ -145,7 +144,7 @@ function HomeContent() {
           <div className="grid gap-6 lg:grid-cols-2">
             <section aria-labelledby="review" className="space-y-3">
               <h2 id="review" className="font-heading text-xl font-semibold">{t("home.review")}</h2>
-              {review.data && review.data.items.length === 0 && <p className="text-sm text-muted-foreground">{t("home.reviewNone")}</p>}
+              {review.data && review.data.items.length === 0 && <EmptyState title={t("home.reviewNone")} description={t("home.reviewNoneHelp")} />}
               <ul className="space-y-2">
                 {review.data?.items.map((n) => (
                   <li key={n.id}>

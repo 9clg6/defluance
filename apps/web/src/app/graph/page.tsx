@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import { GraphView } from "@/components/GraphView";
-import { Card, ErrorBox, Select, Spinner } from "@/components/ui";
+import { Card, EmptyState, PageAlert, PageSkeleton, Select } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
 import { errorMessage, notePath } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -67,9 +67,9 @@ function GraphContent() {
         </button>
       </div>
 
-      {overview.loading && <Spinner label={t("loading")} />}
-      {overview.error && <ErrorBox>{errorMessage(overview.error)}</ErrorBox>}
-      {filtered && (filtered.nodes.length ? <GraphView graph={filtered} onOpen={(id) => router.push(notePath(id))} height={560} /> : <p className="text-muted-foreground">{t("graph.empty")}</p>)}
+      {overview.loading && <PageSkeleton label={t("loading")} lines={2} />}
+      {overview.error && <PageAlert title={t("error.title")}>{errorMessage(overview.error)}</PageAlert>}
+      {filtered && (filtered.nodes.length ? <GraphView graph={filtered} onOpen={(id) => router.push(notePath(id))} height={560} /> : <EmptyState title={t("graph.empty")} description={t("graph.emptyHelp")} />)}
 
       {showLint && lint.data && (
         <div className="grid gap-4 md:grid-cols-2">

@@ -1,10 +1,11 @@
 "use client";
 
-import { FileText, Languages, LogOut, Moon, Network, Plus, Search, Settings, ShieldCheck, Sun } from "lucide-react";
+import { FileText, Languages, LogOut, Network, Plus, Search, Settings, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { Button, Kbd, Spinner } from "@/components/ui";
+import { ThemeSwitch } from "@/components/arc/theme-switch/theme-switch";
+import { Button, Kbd, PageSkeleton } from "@/components/ui";
 import { CreateNote } from "@/components/CreateNote";
 import { SearchPalette } from "@/components/SearchPalette";
 import { StatusBanners } from "@/components/StatusBanners";
@@ -38,7 +39,7 @@ export function Shell({ children }: { children: ReactNode }) {
   if (loading || !me) {
     return (
       <div className="grid min-h-screen place-items-center">
-        <Spinner label={t("loading")} />
+        <PageSkeleton label={t("loading")} />
       </div>
     );
   }
@@ -90,9 +91,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <Languages className="size-4" aria-hidden />
               <span className="sr-only">{lang === "en" ? "Français" : "English"}</span>
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setTheme(dark ? "light" : "dark")} aria-label={t("theme.toggle")} title={t("theme.toggle")}>
-              {dark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
-            </Button>
+            <ThemeSwitch theme={dark ? "dark" : "light"} iconOnly label={t("theme.toggle")} onThemeChange={(next) => setTheme(next)} />
             <Button variant="ghost" size="icon" onClick={() => void logout()} aria-label={t("auth.logout", { name: me.name })} title={t("auth.logout", { name: me.name })}>
               <LogOut className="size-4" aria-hidden />
             </Button>
