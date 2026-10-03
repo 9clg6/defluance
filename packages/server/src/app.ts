@@ -8,7 +8,7 @@ import type { Ctx } from "./context.js";
 import { HttpError } from "./errors.js";
 import { buildMcpServer } from "./mcp.js";
 import { Metrics } from "./metrics.js";
-import * as svc from "./services.js";
+import * as svc from "./services/index.js";
 import { resolveStatic, readStatic } from "./static.js";
 import { PERMS, ROLES } from "./system.js";
 

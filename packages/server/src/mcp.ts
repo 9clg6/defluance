@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Actor } from "./auth.js";
 import type { Ctx } from "./context.js";
 import { HttpError } from "./errors.js";
-import * as svc from "./services.js";
+import * as svc from "./services/index.js";
 
 const text = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] });
 const fail = (e: unknown) => {

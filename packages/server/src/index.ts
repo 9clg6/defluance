@@ -6,7 +6,7 @@ export * from "./mcp.js";
 export * from "./metrics.js";
 export * from "./ports.js";
 export * from "./server.js";
-export * as services from "./services.js";
+export * as services from "./services/index.js";
 export * from "./system.js";
 export * from "./github/client.js";
 export * from "./github/service.js";

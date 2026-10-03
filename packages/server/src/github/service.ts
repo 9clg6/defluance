@@ -4,7 +4,7 @@ import type { GhNode, Handler } from "@defluance/indexer";
 import type { Actor } from "../auth.js";
 import { indexNow, type Ctx } from "../context.js";
 import type { GithubPort } from "../ports.js";
-import * as svc from "../services.js";
+import * as svc from "../services/index.js";
 import { PERMS } from "../system.js";
 import { GithubClient, toIssue, type GhIssue } from "./client.js";
 

@@ -220,7 +220,7 @@ describe("impact of a pull request", () => {
   });
 
   it("globs: ** across folders, * inside one, prefix without wildcard", async () => {
-    const { globMatch } = await import("../services.js");
+    const { globMatch } = await import("../services/index.js");
     expect(globMatch("src/auth/**", "src/auth/a/b.ts")).toBe(true);
     expect(globMatch("src/*.ts", "src/a.ts")).toBe(true);
     expect(globMatch("src/*.ts", "src/a/b.ts")).toBe(false);
