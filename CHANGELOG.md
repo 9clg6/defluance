@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Private notes: encrypted per note for the people you choose (AES-256-GCM, keys wrapped with RSA-OAEP), keys protected by a passphrase and unlocked in memory with an idle timeout, searchable by words while unlocked, with recipients you can add and remove, and keys for agents bound to their tokens. Web UI, REST API, MCP and command line (`keys`, `encrypt`, `decrypt`, `share`). See `docs/guide-private-notes.md` for what it protects and what it cannot.
+- Editing a note together, live: cursors and names, a shared unsaved draft kept across restarts, conflicts reported rather than overwritten. Same process and port, nothing to configure. See `docs/guide-live-editing.md`.
+- The web UI now uses Arc UI components (buttons, badges, dialogs, tabs, toasts, cards, timeline, date range picker), in our colours.
+- API answers are never cached (`Cache-Control: no-store`).
+
 - Security: Content-Security-Policy and other browser headers, request body limits (413), timeouts, response compression, request ids in logs and responses, environment validation at start. The architecture document had promised these headers before they existed.
 - Reliability: simultaneous saves to one vault are queued instead of failing on git's lock; the SQLite statement cache is bounded; a dropped Postgres connection no longer crashes the process.
 - Fixed: setting a frontmatter field to a multi-line or long value wrote invalid YAML and corrupted the note; a value made of a no-break space was lost; a heading with nothing under it was missing from search.

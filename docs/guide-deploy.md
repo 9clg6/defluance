@@ -42,6 +42,8 @@ SQLite is used unless `DFL_DATABASE_URL` is set. The data folder (`DFL_DATA_DIR`
 | `DFL_ADMIN_TOKEN` | generated on first start | Fixed first admin token |
 | `DFL_ADMINS`, `DFL_DEFAULT_ROLE` | none | Admin logins, default role |
 | `DFL_ALLOWED_ORIGINS` | the public URL | Extra origins allowed to send cookie-authenticated writes |
+| `DFL_RSA_BITS` | 4096 | Size of the keys created for private notes: 2048, 3072 or 4096 |
+| `DFL_PRIVATE_LLM` | deny | `allow` lets a language model write the answer to a question that used private notes, so their text reaches that provider |
 | `DFL_RATE_LIMIT` | 300 | Requests per minute per token or user. 0 disables |
 | `DFL_SESSION_SECRET` | generated (SQLite) | At least 16 characters. Required with Postgres, so that sessions survive restarts and are shared between instances |
 | `DFL_EMBED`, `DFL_LLM` | hash, none | Models, see [[guide-search]] |
@@ -70,7 +72,7 @@ Set `DFL_EMBED` to the new model and restart. The text stays searchable by words
 
 ## Scaling
 
-One instance serves a team comfortably: on a 10,000-note vault the search p95 is about 30 ms, reading a note about 11 ms, indexing one changed note under 100 ms, and a full index takes about 10 seconds (`pnpm bench`). Run one writing instance. The in-memory rate limiter and the single background worker are not shared between instances.
+One instance serves a team comfortably: on a 10,000-note vault the search p95 is about 30 ms, reading a note about 11 ms, indexing one changed note under 100 ms, and a full index takes about 10 seconds (`pnpm bench`). Run one writing instance. The in-memory rate limiter, the single background worker, the unlocked keys of private notes and the live editing rooms are not shared between instances: a person who unlocks a key on one instance has not unlocked it on another, and everyone editing a note must reach the same instance.
 
 ## Upgrading
 

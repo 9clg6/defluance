@@ -35,6 +35,9 @@ A Bearer token without `admin` is an **agent**. It writes to a branch, creates d
 | Browser policy | Every response carries a Content-Security-Policy (same origin only, no framing, no plugins), `nosniff` and a strict referrer policy. HSTS is added when the public URL is https. `script-src` keeps `'unsafe-inline'` because the web UI inlines its bootstrap; a nonce-based policy would need a server-rendered UI |
 | Size and time limits | Request bodies are capped (26 MB for webhooks, the size GitHub allows; 5 MB for the API and MCP; 64 KB for sign-in). Requests time out after 30 s, 60 s for smart search and 120 s for questions. Oversized bodies get a 413 problem document |
 | Configuration | Environment variables are validated at start and every problem is reported at once. A secret shorter than 16 characters, a malformed URL or an unknown role refuses to start |
+| Private notes | Encrypted per note (AES-256-GCM) for each recipient (RSA-OAEP). Keys are unlocked in memory with a passphrase, with an idle timeout and a lockout after five wrong guesses. No plaintext on disk, in git, in the index, in logs or in the audit log, and none sent to a model by default. See [[guide-private-notes]] |
+| Live editing | WebSocket rooms need the `read` permission to watch and `write` to type, check the Origin of browser sessions, and never open for private notes. Names are set by the server. See [[guide-live-editing]] |
+| Caching | API answers carry `Cache-Control: no-store` |
 | Concurrent writes | Git writes to one vault are queued, so simultaneous saves all succeed (or report a conflict) instead of failing on git's index lock |
 
 ## What is not covered
