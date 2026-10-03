@@ -5,7 +5,7 @@ import { actorOf, errs, filterQuery, idParam, jsonBody, mode, ok, router } from 
 
 export function noteRoutes(ctx: Ctx) {
   const r = router();
-  // notes
+  r.openapi(createRoute({ method: "get", path: "/api/v1/stats", summary: "Notes by type and status", tags: ["notes"], responses: { 200: ok("Counts"), ...errs } }), async (c) => c.json(await svc.noteStats(ctx, actorOf(c)), 200));
   r.openapi(createRoute({ method: "get", path: "/api/v1/notes", summary: "List notes", tags: ["notes"], request: { query: z.object({ ...filterQuery, limit: z.coerce.number().int().min(1).max(200).optional(), after: z.string().optional().openapi({ description: "cursor: the `next` of the previous page" }), sort: z.enum(["id", "updated"]).optional() }) }, responses: { 200: ok("Page of notes"), ...errs } }), async (c) => {
     const q = c.req.valid("query");
     return c.json(await svc.listNotes(ctx, actorOf(c), q), 200);

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Security: Content-Security-Policy and other browser headers, request body limits (413), timeouts, response compression, request ids in logs and responses, environment validation at start. The architecture document had promised these headers before they existed.
+- Reliability: simultaneous saves to one vault are queued instead of failing on git's lock; the SQLite statement cache is bounded; a dropped Postgres connection no longer crashes the process.
+- Fixed: setting a frontmatter field to a multi-line or long value wrote invalid YAML and corrupted the note; a value made of a no-break space was lost; a heading with nothing under it was missing from search.
+- New: `GET /api/v1/stats` and a "Where the specs stand" chart on the home page; dialogs animate in and out (and stay still with reduced motion); error pages that keep your notes safe.
+- Tests: cross-browser flows on Chromium, Firefox and WebKit with the e2e framework (`apps/e2e`), property-based tests for the parsers, links, chunking, glob matching, diffs and the encryption round trip, a CSP check on every page.
+- Internal: the server is split into route modules and service modules; deep search uses the AI SDK's `ToolLoopAgent`; the web UI uses SWR and `useSearchParams`.
+
 ## 0.1.0
 
 First release.

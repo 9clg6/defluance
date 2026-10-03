@@ -85,6 +85,42 @@ body {
   outline-offset: 2px;
 }
 
+/*
+ * Dialog motion: the values of the transitions.dev "modal open/close" recipe (scale from 0.96, 250 ms in, 150 ms out,
+ * ease-out expo). Radix keeps a closing dialog mounted until its exit animation ends, so both directions animate.
+ * Reduced motion is handled by the rule below, which shortens every animation to nothing.
+ */
+:root {
+  --modal-open-dur: 250ms;
+  --modal-close-dur: 150ms;
+  --modal-scale: 0.96;
+  --modal-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes dfl-modal-in {
+  from { opacity: 0; transform: scale(var(--modal-scale)); }
+}
+@keyframes dfl-modal-out {
+  to { opacity: 0; transform: scale(var(--modal-scale)); }
+}
+@keyframes dfl-fade-in {
+  from { opacity: 0; }
+}
+@keyframes dfl-fade-out {
+  to { opacity: 0; }
+}
+/* Bars of the status chart grow from the left, one row after the other. */
+@keyframes dfl-grow {
+  from { transform: scaleX(0); }
+}
+.dfl-bar {
+  transform-origin: left;
+  animation: dfl-grow 600ms var(--modal-ease) backwards;
+}
+[data-dialog-content][data-state="open"] { animation: dfl-modal-in var(--modal-open-dur) var(--modal-ease); }
+[data-dialog-content][data-state="closed"] { animation: dfl-modal-out var(--modal-close-dur) var(--modal-ease) forwards; }
+[data-dialog-overlay][data-state="open"] { animation: dfl-fade-in var(--modal-open-dur) var(--modal-ease); }
+[data-dialog-overlay][data-state="closed"] { animation: dfl-fade-out var(--modal-close-dur) var(--modal-ease) forwards; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

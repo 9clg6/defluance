@@ -91,6 +91,7 @@ pnpm install
 pnpm build            # all packages and the web UI
 pnpm test             # 200+ unit and integration tests
 pnpm --filter @defluance/web e2e   # browser tests with accessibility checks (needs Chrome)
+pnpm --filter @defluance/e2e test:e2e   # the same flows on Chromium, Firefox, WebKit and a phone, see apps/e2e
 pnpm bench            # 10,000-note performance benchmark against the PRD limits
 pnpm pack:cli --verify             # build the npm package and run it from a clean install
 ```

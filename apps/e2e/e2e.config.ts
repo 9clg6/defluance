@@ -17,6 +17,8 @@ const app = {
 
 export default {
   tests: 'tests/**/*.e2e.ts',
+  // Four browsers on one small server: more workers than this makes the timing-sensitive steps flaky (CI uses 1).
+  workers: 2,
   // One server for all targets, so tests create their own notes and never assume a count of notes.
   targets: [
     { name: 'chromium', engine: web({ browser: 'chromium' }), app },

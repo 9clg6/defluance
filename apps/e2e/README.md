@@ -43,4 +43,5 @@ pnpm --filter @defluance/e2e test:agent
 - `selectOption('review')` selects by label. Use `{ value: 'review' }` for a value.
 - `press` and `pressSequentially` click the editor first, which closes the completion list and moves the caret. Fill the document, then choose an option by clicking it.
 - The engine cannot set the browser language yet and the app follows it. WebKit inherits the machine's. `openInEnglish` in `tests/support.ts` pins English through the app's own stored preference.
+- Four browsers against one small server is a lot: `workers` is 2 (CI uses 1). With more, a few timing-sensitive steps fail under load and pass alone.
 - After a client-side navigation the address has no trailing slash. Match it with a regular expression.

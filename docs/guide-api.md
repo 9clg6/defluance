@@ -77,4 +77,4 @@ When no note supports an answer, `refused` is true and nothing is invented. A ci
 
 ## Endpoints
 
-Notes: `GET/POST /notes`, `GET/PUT /notes/{id}`, `PATCH /notes/{id}/status`, `GET/POST /notes/{id}/links`, `GET /notes/{id}/history`, `POST /notes/{id}/issues`. Search and graph: `/search`, `/graph/neighbors`, `/graph/path`, `/graph/impact`, `/graph/lint`, `/graph/overview`, `/ask`. Administration: `/tokens`, `/spaces/{space}/members`, `/audit`, `/index/status`, `/index/rebuild`, `/github/status`, `/github/resync`, `/schema`, `/me`.
+Notes: `GET /stats` (notes by type and status, for the spaces you can read), `GET/POST /notes`, `GET/PUT /notes/{id}`, `PATCH /notes/{id}/status`, `GET/POST /notes/{id}/links`, `GET /notes/{id}/history`, `POST /notes/{id}/issues`. Search and graph: `/search`, `/graph/neighbors`, `/graph/path`, `/graph/impact`, `/graph/lint`, `/graph/overview`, `/ask`. Administration: `/tokens`, `/spaces/{space}/members`, `/audit`, `/index/status`, `/index/rebuild`, `/github/status`, `/github/resync`, `/schema`, `/me`.

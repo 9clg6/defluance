@@ -196,3 +196,8 @@ export interface GithubStatus {
   webhookUrl: string;
   oauth: boolean;
 }
+
+export interface NoteStats {
+  total: number;
+  groups: { type: string; total: number; statuses: Record<string, number> }[];
+}

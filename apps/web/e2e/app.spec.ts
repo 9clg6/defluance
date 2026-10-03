@@ -28,6 +28,9 @@ test.describe("reading and searching", () => {
     await expect(page.getByText("Notes", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Recently updated" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Waiting for review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Where the specs stand" })).toBeVisible();
+    const table = page.getByRole("table", { name: "Notes by type and status" });
+    await expect(table.getByRole("row", { name: /Functional spec/ })).toContainText(/Approved: \d/);
     await expectAccessible(page, "home");
   });
 

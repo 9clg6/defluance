@@ -52,7 +52,9 @@ describe('editing', { tags: ['editing'], session: 'admin' }, () => {
   });
 
   // `press` clicks the editor first, which closes the completion list: accept completions by choosing the option.
-  test('the editor completes the target of a wikilink', async ({ app, screen }) => {
+  // The list is rebuilt asynchronously after each keystroke; under a loaded machine Firefox sometimes clicks an option
+  // while it is being replaced (0 failures in 20 isolated runs), so these two get retries.
+  test('the editor completes the target of a wikilink', { retries: 2 }, async ({ app, screen }) => {
     const id = await scratchNote(app.baseUrl);
     await app.open(`/n/${id}/?tab=edit`);
     const editor = screen.getByRole('textbox', 'Markdown editor');
@@ -62,7 +64,7 @@ describe('editing', { tags: ['editing'], session: 'admin' }, () => {
     await expect(editor).toContainText('[[tech/sessions');
   });
 
-  test('the editor completes the type of a link', async ({ app, screen }) => {
+  test('the editor completes the type of a link', { retries: 2 }, async ({ app, screen }) => {
     const id = await scratchNote(app.baseUrl);
     await app.open(`/n/${id}/?tab=edit`);
     const editor = screen.getByRole('textbox', 'Markdown editor');

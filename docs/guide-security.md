@@ -32,6 +32,10 @@ A Bearer token without `admin` is an **agent**. It writes to a branch, creates d
 | Code execution | None. Note content is never evaluated |
 | Audit | Every write is recorded with the actor, the action, the note and the commit. The log has no update or delete endpoint |
 | Rate limiting | 300 requests per minute per actor by default (in memory) |
+| Browser policy | Every response carries a Content-Security-Policy (same origin only, no framing, no plugins), `nosniff` and a strict referrer policy. HSTS is added when the public URL is https. `script-src` keeps `'unsafe-inline'` because the web UI inlines its bootstrap; a nonce-based policy would need a server-rendered UI |
+| Size and time limits | Request bodies are capped (26 MB for webhooks, the size GitHub allows; 5 MB for the API and MCP; 64 KB for sign-in). Requests time out after 30 s, 60 s for smart search and 120 s for questions. Oversized bodies get a 413 problem document |
+| Configuration | Environment variables are validated at start and every problem is reported at once. A secret shorter than 16 characters, a malformed URL or an unknown role refuses to start |
+| Concurrent writes | Git writes to one vault are queued, so simultaneous saves all succeed (or report a conflict) instead of failing on git's index lock |
 
 ## What is not covered
 

@@ -334,3 +334,23 @@ describe("graph, search and index", () => {
     expect((await s.call("POST", "/api/v1/ask", { token: t, body: { question: "What is the Falcon acquisition codename?" } })).body.refused).toBe(true);
   });
 });
+
+describe("GET /api/v1/stats", () => {
+  it("counts notes by type and status, only in spaces the token may read", async () => {
+    const s = await makeServer();
+    try {
+      const all = await s.call("GET", "/api/v1/stats");
+      expect(all.status).toBe(200);
+      expect(all.body.total).toBe(5);
+      const byType = Object.fromEntries(all.body.groups.map((g: { type: string; total: number }) => [g.type, g.total]));
+      expect(byType).toEqual({ "functional-spec": 2, note: 2, "technical-spec": 1 });
+      expect(all.body.groups.find((g: { type: string }) => g.type === "functional-spec").statuses).toEqual({ approved: 1, draft: 1 });
+
+      const narrow = await s.token(["read"], ["tech"]);
+      const some = await s.call("GET", "/api/v1/stats", { token: narrow });
+      expect(some.body).toEqual({ total: 1, groups: [{ type: "technical-spec", total: 1, statuses: { approved: 1 } }] });
+    } finally {
+      await s.cleanup();
+    }
+  });
+});

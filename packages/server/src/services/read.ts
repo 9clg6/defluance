@@ -22,6 +22,27 @@ export interface NoteSummary {
 
 export const summary = (n: NoteRow): NoteSummary => ({ id: n.id, title: n.title, type: n.type, status: n.status, owner: n.owner, space: n.space, tags: n.tags, updated_at: n.updated_at });
 
+export interface NoteStats {
+  total: number;
+  /** One row per note type, biggest first, with the number of notes in each status. */
+  groups: { type: string; total: number; statuses: Record<string, number> }[];
+}
+
+export async function noteStats(ctx: Ctx, actor: Actor): Promise<NoteStats> {
+  const rows = await ctx.store.stats({ spaces: await readSpaces(ctx, actor) });
+  const groups = new Map<string, NoteStats["groups"][number]>();
+  for (const r of rows) {
+    const type = r.type ?? "untyped";
+    const g = groups.get(type) ?? { type, total: 0, statuses: {} };
+    const status = r.status ?? "none";
+    g.statuses[status] = (g.statuses[status] ?? 0) + r.count;
+    g.total += r.count;
+    groups.set(type, g);
+  }
+  const list = [...groups.values()].sort((a, b) => b.total - a.total || a.type.localeCompare(b.type));
+  return { total: list.reduce((n, g) => n + g.total, 0), groups: list };
+}
+
 export async function listNotes(ctx: Ctx, actor: Actor, f: NoteFilter & { limit?: number | undefined; after?: string | undefined; sort?: "id" | "updated" | undefined }) {
   const readable = await readSpaces(ctx, actor);
   const spaces = f.space ? (readable && !readable.includes(f.space) ? [] : undefined) : readable;

@@ -7,6 +7,7 @@ import { Suspense, useState } from "react";
 import { AskPanel } from "@/components/AskPanel";
 import { StatusBadge, TypeBadge } from "@/components/badges";
 import { CreateNote } from "@/components/CreateNote";
+import { StatusChart } from "@/components/StatusChart";
 import { DraggableMarquee } from "@/components/block/draggable-marquee";
 import { FlipText } from "@/components/block/flip-text";
 import { Button, Card, Spinner } from "@/components/ui";
@@ -15,7 +16,7 @@ import { notePath, qs } from "@/lib/api";
 import { can, useAuth } from "@/lib/auth";
 import { relativeTime } from "@/lib/frontmatter";
 import { useT } from "@/lib/i18n";
-import type { IndexStatus, NoteSummary } from "@/lib/types";
+import type { IndexStatus, NoteStats, NoteSummary } from "@/lib/types";
 
 interface Page {
   items: NoteSummary[];
@@ -36,6 +37,7 @@ function HomeContent() {
   const recent = useApi<Page>(`/api/v1/notes${qs({ sort: "updated", limit: 12 })}`);
   const review = useApi<Page>(`/api/v1/notes${qs({ status: "review", limit: 6 })}`);
   const lint = useApi<{ orphans: string[]; broken: unknown[] }>("/api/v1/graph/lint");
+  const stats = useApi<NoteStats>("/api/v1/stats");
   const params = useSearchParams();
   const ask = params.get("ask") ?? undefined;
   const deep = params.get("deep") === "1";
@@ -88,6 +90,13 @@ function HomeContent() {
               </Card>
             ))}
           </section>
+
+          {stats.data && stats.data.total > 0 && (
+            <section aria-labelledby="progress" className="space-y-3">
+              <h2 id="progress" className="font-heading text-xl font-semibold">{t("home.progress")}</h2>
+              <StatusChart stats={stats.data} />
+            </section>
+          )}
 
           <section aria-labelledby="recent" className="space-y-3">
             <h2 id="recent" className="font-heading text-xl font-semibold">{t("home.recent")}</h2>

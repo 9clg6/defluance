@@ -197,6 +197,13 @@ export class IndexStore {
     return (await this.db.all(sql, params)).map(toNote);
   }
 
+  /** How many notes of each type are in each status, for the notes the filter lets through. */
+  async stats(f: NoteFilter = {}): Promise<{ type: string | null; status: string | null; count: number }[]> {
+    const w = noteWhere(f);
+    const rows = await this.db.all<{ type: string | null; status: string | null; c: number | string }>(`SELECT n.type, n.status, COUNT(*) AS c FROM notes n WHERE 1 = 1${w.sql} GROUP BY n.type, n.status`, w.params);
+    return rows.map((r) => ({ type: r.type, status: r.status, count: Number(r.c) }));
+  }
+
   async counts(): Promise<{ notes: number; chunks: number; edges: number; embedded: number; pending: number }> {
     const one = async (sql: string) => Number((await this.db.get<{ c: number | string }>(sql))?.c ?? 0);
     return {

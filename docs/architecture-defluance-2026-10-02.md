@@ -615,6 +615,9 @@ Ce que le code fait réellement, quand il diffère du plan ci-dessus. Chaque éc
 | Reranker du RAG | Aucun | Citations validées structurellement : une citation est toujours un passage récupéré. Réponse extractive sans LLM, refus sans source |
 | Embeddings via le seul AI SDK | Embedder `local` en plus : `@huggingface/transformers`, installé à la demande dans `~/.defluance/runtime`, modèle multilingue MiniLM quantifié | Recherche par le sens sans service ni clé. Le runtime pèse 480 Mo : jamais dans le paquet de base. Passages découpés en fenêtres de 85 mots (le modèle lit 128 jetons) et moyennés |
 | Une page graphe par type de lien | `react-force-graph-2d`, liste accessible en doublon | Canvas non lisible par un lecteur d'écran |
+| Headers de sécurité (NFR-003) | CSP, `nosniff`, referrer policy, HSTS en https, via `hono/secure-headers` (ajoutés après audit : la première version ne les envoyait pas, alors que ce document les annonçait) | `script-src` garde `'unsafe-inline'` : l'export statique de Next injecte son amorçage. Plafond : pas de nonce sans rendu serveur. Évolution : hachés calculés au build |
+| Services serveur en un fichier | `packages/server/src/services/{read,search,write,admin,impact}.ts` et un routeur Hono par domaine dans `routes/`, composés par `app.route()` | Lisibilité et bonnes pratiques Hono (un routeur par sujet, middleware dans un module) |
+| Hooks de données maison | SWR dans l'UI (déduplication des requêtes identiques, une seule lecture du schéma pour toute la page) ; état d'URL via `useSearchParams` sous `Suspense` | Pratiques React/Next recommandées ; `window.location` lu dans des effets était un état dérivé |
 
 ## Décisions prises à l'implémentation
 
@@ -627,6 +630,8 @@ Ce que le code fait réellement, quand il diffère du plan ci-dessus. Chaque éc
 
 - **D16. Indexation en deux temps.** Le texte est indexé aussitôt (recherche par mots immédiate), les vecteurs d'un modèle lent sont calculés en arrière-plan avec progression, reprise après échec et relance chaque minute. Le démarrage du serveur ne dépend plus de la vitesse du modèle.
 - **D17. Seuil de similarité par modèle.** Chaque embedder dit où commence « sans rapport » (0,2 pour MiniLM, mesuré : toutes les fiches attendues au-dessus, 3 questions hors sujet sur 4 en dessous). Fusion hybride : poids du côté vectoriel ×1,5 pour un modèle sémantique (mesuré, voir plus bas), 1 pour `hash`.
+- **D19. Écritures git sérialisées.** Une file par dépôt dans `writeAndCommit`, y compris le contrôle de conflit : vingt sauvegardes simultanées réussissent toutes (avant : 2 sur 20 sans file, mesuré), ou signalent un conflit.
+- **D20. Agents avec l'AI SDK.** `deep` utilise `ToolLoopAgent` (instructions, outils, arrêt par nombre de tours, dernier tour sans outil). Le plan de `smart` et le reclassement passent par la sortie structurée du modèle (`Output.object`) quand il la supporte, puis par la même validation défensive qu'avant.
 - **D18. Recherche assistée par LLM.** `smart` : plan de recherche en JSON (reformulations, filtres) lu de façon défensive, filtres limités au vocabulaire du vault et abandonnés s'ils laissent moins de 3 résultats, reclassement facultatif. `deep` : boucle d'outils (search, read_note, neighbors) bornée à 6 tours, dernier tour sans outil, citations limitées aux passages renvoyés par les outils, mêmes droits d'espace que le reste.
 
 ## Qualité de recherche (`defluance eval --search`, 14 notes, 28 questions dont 22 paraphrases)

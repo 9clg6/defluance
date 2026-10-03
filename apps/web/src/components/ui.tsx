@@ -94,8 +94,8 @@ export const DialogClose = DialogPrimitive.Close;
 export function DialogContent({ title, description, children, className, closeLabel = "Close" }: { title: string; description?: string; children: ReactNode; className?: string; closeLabel?: string }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
-      <DialogPrimitive.Content className={cn("fixed left-1/2 top-[8vh] z-50 max-h-[84vh] w-[min(92vw,34rem)] -translate-x-1/2 overflow-y-auto rounded-xl border bg-card p-5 shadow-2xl", className)}>
+      <DialogPrimitive.Overlay data-dialog-overlay className="fixed inset-0 z-50 bg-black/50" />
+      <DialogPrimitive.Content data-dialog-content className={cn("fixed left-1/2 top-[8vh] z-50 max-h-[84vh] w-[min(92vw,34rem)] -translate-x-1/2 overflow-y-auto rounded-xl border bg-card p-5 shadow-2xl", className)}>
         <DialogPrimitive.Title className="font-heading text-lg font-semibold">{title}</DialogPrimitive.Title>
         {description ? <DialogPrimitive.Description className="mt-1 text-sm text-muted-foreground">{description}</DialogPrimitive.Description> : <DialogPrimitive.Description className="sr-only">{title}</DialogPrimitive.Description>}
         <div className="mt-4">{children}</div>
