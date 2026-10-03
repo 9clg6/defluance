@@ -181,6 +181,16 @@ describe("notes", () => {
     expect((await s.call("PATCH", `/api/v1/notes/${id}/status`, { body: { status: "wip" } })).status).toBe(422);
   });
 
+  it("lists a link once when it is written in both the frontmatter and the body", async () => {
+    // readme declares [[produit/auth-login|related]] in its body only here: add the same one to the frontmatter
+    const id = enc("readme");
+    await s.call("POST", `/api/v1/notes/${id}/links`, { body: { to: "produit/auth-login", type: "related" } });
+    const out = (await s.call("GET", `/api/v1/notes/${id}/links`)).body.outgoing;
+    expect(out["related"].filter((l: { target: string }) => l.target === "produit/auth-login")).toHaveLength(1);
+    const inc = (await s.call("GET", `/api/v1/notes/${enc("produit/auth-login")}/links`)).body.incoming;
+    expect(inc["related"].filter((l: { from: { id: string } }) => l.from.id === "readme")).toHaveLength(1);
+  });
+
   it("adds typed links and refuses unknown types, missing targets and duplicates", async () => {
     const id = enc("produit/password-reset");
     const r = await s.call("POST", `/api/v1/notes/${id}/links`, { body: { to: "tech/sessions", type: "depends_on" } });
@@ -255,6 +265,38 @@ describe("tokens and members", () => {
     const writer = await s.token(["read", "write"], ["produit"]);
     expect((await s.call("GET", "/api/v1/spaces/produit/members", { token: writer })).status).toBe(403);
     expect((await s.call("GET", "/api/v1/spaces/nope/members")).status).toBe(404);
+  });
+});
+
+describe("schema, scoped questions and recent notes", () => {
+  it("serves the vault schema and the public auth config", async () => {
+    const schema = (await s.call("GET", "/api/v1/schema")).body;
+    expect(schema.statuses).toEqual(["draft", "review", "approved", "implemented", "deprecated"]);
+    expect(schema.linkTypes).toContain("tracked_by");
+    expect(Object.keys(schema.types)).toContain("functional-spec");
+    expect((await s.call("GET", "/auth/config", { token: null })).body).toEqual({ oauth: false, local: false });
+  });
+
+  it("ask can be limited to a note and its neighbours", async () => {
+    const q = "What expires after fifteen minutes?";
+    const all = (await s.call("POST", "/api/v1/ask", { body: { question: q } })).body;
+    expect(all.citations[0].note).toBe("tech/sessions");
+    // readme -> auth-login -> sessions: sessions is two links away
+    const scoped = (await s.call("POST", "/api/v1/ask", { body: { question: q, scope_note: "readme" } })).body;
+    expect(scoped.citations.map((c: { note: string }) => c.note)).not.toContain("tech/sessions");
+    const wider = (await s.call("POST", "/api/v1/ask", { body: { question: q, scope_note: "readme", scope_depth: 2 } })).body;
+    expect(wider.citations[0].note).toBe("tech/sessions");
+    const near = (await s.call("POST", "/api/v1/ask", { body: { question: q, scope_note: "produit/auth-login" } })).body;
+    expect(near.citations[0].note).toBe("tech/sessions");
+    expect((await s.call("POST", "/api/v1/ask", { body: { question: q, scope_note: "nope" } })).status).toBe(404);
+  });
+
+  it("lists most recently indexed notes first", async () => {
+    const id = enc("tech/sessions");
+    const raw = (await s.call("GET", `/api/v1/notes/${id}`)).body;
+    await s.call("PUT", `/api/v1/notes/${id}`, { body: { content: raw.raw.replace("fifteen", "ten"), base_commit: raw.commit } });
+    const list = (await s.call("GET", "/api/v1/notes?sort=updated&limit=1")).body;
+    expect(list.items[0].id).toBe("tech/sessions");
   });
 });
 

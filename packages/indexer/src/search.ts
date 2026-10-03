@@ -84,7 +84,7 @@ async function vectorSearch(store: IndexStore, embedder: Embedder, query: string
 export async function search(store: IndexStore, query: string, opts: SearchOptions = {}): Promise<SearchHit[]> {
   const tokens = queryTokens(query);
   if (!tokens.length) return [];
-  const filter: NoteFilter = { space: opts.space, spaces: opts.spaces, type: opts.type, status: opts.status, tag: opts.tag, owner: opts.owner };
+  const filter: NoteFilter = { space: opts.space, spaces: opts.spaces, type: opts.type, status: opts.status, tag: opts.tag, owner: opts.owner, ids: opts.ids };
 
   const fts = await ftsSearch(store, tokens, filter);
   const vec = opts.embedder ? await vectorSearch(store, opts.embedder, query, filter) : [];

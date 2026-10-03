@@ -72,7 +72,7 @@ const refusal = (mode: AskResult["mode"]): AskResult => ({ answer: NO_SOURCE, ci
  */
 export async function ask(store: IndexStore, question: string, opts: AskOptions = {}): Promise<AskResult> {
   const mode = opts.llm ? "llm" : "extractive";
-  const filter = { space: opts.space, spaces: opts.spaces, type: opts.type, status: opts.status, tag: opts.tag, owner: opts.owner };
+  const filter = { space: opts.space, spaces: opts.spaces, type: opts.type, status: opts.status, tag: opts.tag, owner: opts.owner, ids: opts.ids };
   let hits = await search(store, question, { ...filter, embedder: opts.embedder ?? null, limit: opts.k ?? 6 });
 
   if (!opts.llm) {

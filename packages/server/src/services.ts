@@ -90,7 +90,7 @@ export interface NoteSummary {
 
 const summary = (n: NoteRow): NoteSummary => ({ id: n.id, title: n.title, type: n.type, status: n.status, owner: n.owner, space: n.space, tags: n.tags, updated_at: n.updated_at });
 
-export async function listNotes(ctx: Ctx, actor: Actor, f: NoteFilter & { limit?: number | undefined; after?: string | undefined }) {
+export async function listNotes(ctx: Ctx, actor: Actor, f: NoteFilter & { limit?: number | undefined; after?: string | undefined; sort?: "id" | "updated" | undefined }) {
   const readable = await readSpaces(ctx, actor);
   const spaces = f.space ? (readable && !readable.includes(f.space) ? [] : undefined) : readable;
   const limit = Math.min(f.limit ?? 50, 200);
@@ -139,8 +139,13 @@ export async function noteLinks(ctx: Ctx, actor: Actor, id: string) {
   const gh = new Map((await ctx.store.ghNodes(ghKeys)).map((n) => [n.key, n]));
 
   const outgoing: LinkView[] = [];
+  const seenOut = new Set<string>();
   for (const e of out) {
     if (e.to_note && !visible(e.to_note)) continue;
+    // the same link written in the frontmatter and in the body counts once
+    const key = `${e.link_type}|${e.to_ref}|${e.heading ?? ""}`;
+    if (seenOut.has(key)) continue;
+    seenOut.add(key);
     const t = e.to_note ? g.nodes.get(e.to_note) : undefined;
     outgoing.push({
       type: e.link_type,
@@ -154,8 +159,15 @@ export async function noteLinks(ctx: Ctx, actor: Actor, id: string) {
       broken: e.kind === "note" && !e.to_note,
     });
   }
+  const seenIn = new Set<string>();
   const incoming = (await ctx.store.edgesTo(note.id))
     .filter((e: EdgeRow) => visible(e.from_note))
+    .filter((e: EdgeRow) => {
+      const key = `${e.link_type}|${e.from_note}`;
+      if (seenIn.has(key)) return false;
+      seenIn.add(key);
+      return true;
+    })
     .map((e: EdgeRow) => {
       const f = g.nodes.get(e.from_note);
       return { type: e.link_type, line: e.line, from: { id: e.from_note, title: f?.title ?? e.from_note, type: f?.type ?? null, status: f?.status ?? null } };
@@ -186,10 +198,18 @@ export async function searchNotes(ctx: Ctx, actor: Actor, q: string, f: NoteFilt
   return indexSearch(ctx.store, q, { ...f, spaces, embedder: ctx.embedder, limit: Math.min(f.limit ?? 20, 50) });
 }
 
-export async function askQuestion(ctx: Ctx, actor: Actor, question: string, f: NoteFilter = {}): Promise<AskResult> {
+export async function askQuestion(ctx: Ctx, actor: Actor, question: string, f: NoteFilter & { scopeNote?: string | undefined; scopeDepth?: number | undefined } = {}): Promise<AskResult> {
   const readable = await readSpaces(ctx, actor);
   const spaces = f.space ? (readable && !readable.includes(f.space) ? [] : undefined) : readable;
-  return ask(ctx.store, question, { ...f, spaces, embedder: ctx.embedder, llm: ctx.llm });
+  const { scopeNote, scopeDepth, ...filter } = f;
+  // "Ask about this note": retrieval is limited to the note and the notes within `scopeDepth` links of it.
+  const ids = scopeNote ? (await graphNeighborsOf(ctx, actor, scopeNote, { depth: scopeDepth ?? 1 })).nodes.map((n) => n.id) : undefined;
+  return ask(ctx.store, question, { ...filter, spaces, ids, embedder: ctx.embedder, llm: ctx.llm });
+}
+
+export async function vaultSchema(ctx: Ctx) {
+  const s = await ctx.getSchema();
+  return { types: s.types, statuses: s.statuses, linkTypes: s.linkTypes };
 }
 
 export async function graphNeighborsOf(ctx: Ctx, actor: Actor, id: string, o: { link?: string | undefined; direction?: "in" | "out" | "both" | undefined; depth?: number | undefined }) {

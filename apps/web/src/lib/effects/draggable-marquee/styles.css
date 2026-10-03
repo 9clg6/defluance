@@ -1,0 +1,5 @@
+@media (prefers-reduced-motion: reduce) {
+  .obsidian-draggable-marquee { overflow-x: auto; }
+  .obsidian-draggable-marquee > div { transform: none !important; }
+  .obsidian-draggable-marquee [data-marquee-copy="duplicate"] { display: none; }
+}

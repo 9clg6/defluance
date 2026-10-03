@@ -152,6 +152,8 @@ export function createApp(ctx: Ctx) {
     );
   });
 
+  app.get("/auth/config", (c) => c.json({ oauth: !!ctx.oauth, local: ctx.localMode }));
+
   app.post("/auth/token-login", async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as { token?: unknown };
     const origin = c.req.header("origin");
@@ -235,6 +237,7 @@ export function createApp(ctx: Ctx) {
   app.doc31("/api/v1/openapi.json", { openapi: "3.1.0", info: { title: "Defluance API", version: "0.1.0", description: "Notes, links, search, graph, RAG and GitHub for a Markdown vault. Authenticate with `Authorization: Bearer dfl_…`." }, security: [{ bearer: [] }] });
 
   app.openapi(createRoute({ method: "get", path: "/api/v1/me", summary: "Current actor and its spaces", tags: ["system"], responses: { 200: ok("Actor"), ...errs } }), async (c) => c.json(await svc.me(ctx, actorOf(c)), 200));
+  app.openapi(createRoute({ method: "get", path: "/api/v1/schema", summary: "Note types, statuses and link types of this vault", tags: ["system"], responses: { 200: ok("Schema"), ...errs } }), async (c) => c.json(await svc.vaultSchema(ctx), 200));
   app.openapi(createRoute({ method: "get", path: "/api/v1/spaces", summary: "Spaces the actor can read", tags: ["system"], responses: { 200: ok("Spaces"), ...errs } }), async (c) => c.json(await svc.listSpaces(ctx, actorOf(c)), 200));
 
   const spaceParam = z.object({ space: z.string() });
@@ -252,7 +255,7 @@ export function createApp(ctx: Ctx) {
   });
 
   // notes
-  app.openapi(createRoute({ method: "get", path: "/api/v1/notes", summary: "List notes", tags: ["notes"], request: { query: z.object({ ...filterQuery, limit: z.coerce.number().int().min(1).max(200).optional(), after: z.string().optional().openapi({ description: "cursor: the `next` of the previous page" }) }) }, responses: { 200: ok("Page of notes"), ...errs } }), async (c) => {
+  app.openapi(createRoute({ method: "get", path: "/api/v1/notes", summary: "List notes", tags: ["notes"], request: { query: z.object({ ...filterQuery, limit: z.coerce.number().int().min(1).max(200).optional(), after: z.string().optional().openapi({ description: "cursor: the `next` of the previous page" }), sort: z.enum(["id", "updated"]).optional() }) }, responses: { 200: ok("Page of notes"), ...errs } }), async (c) => {
     const q = c.req.valid("query");
     return c.json(await svc.listNotes(ctx, actorOf(c), q), 200);
   });
@@ -329,11 +332,11 @@ export function createApp(ctx: Ctx) {
   app.openapi(createRoute({
     method: "post", path: "/api/v1/ask", summary: "Ask a question, answered from the notes with citations", tags: ["search"],
     description: "Every claim cites a note, heading and commit. When no note supports an answer the result has `refused: true`.",
-    request: { body: jsonBody(z.object({ question: z.string().min(1), ...filterQuery })) },
+    request: { body: jsonBody(z.object({ question: z.string().min(1), ...filterQuery, scope_note: z.string().optional().openapi({ description: "limit retrieval to this note and its neighbours" }), scope_depth: z.number().int().min(1).max(3).optional() })) },
     responses: { 200: ok("Answer"), ...errs },
   }), async (c) => {
-    const { question, ...f } = c.req.valid("json");
-    return c.json(await svc.askQuestion(ctx, actorOf(c), question, f), 200);
+    const { question, scope_note, scope_depth, ...f } = c.req.valid("json");
+    return c.json(await svc.askQuestion(ctx, actorOf(c), question, { ...f, scopeNote: scope_note, scopeDepth: scope_depth }), 200);
   });
 
   // index, audit, tokens

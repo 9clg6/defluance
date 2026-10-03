@@ -10,3 +10,10 @@ coverage
 .next
 *.sqlite
 *.sqlite-*
+apps/web/out
+apps/web/test-results
+apps/web/playwright-report
+apps/web/next-env.d.ts
+packages/cli/ui
+packages/cli/bundle
+dist-npm

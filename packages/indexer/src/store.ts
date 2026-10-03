@@ -51,6 +51,8 @@ export interface NoteFilter {
   status?: string | undefined;
   tag?: string | undefined;
   owner?: string | undefined;
+  /** Restrict to these note ids (scoped questions). */
+  ids?: string[] | undefined;
 }
 
 const json = <T>(s: unknown, fallback: T): T => {
@@ -107,6 +109,13 @@ export function noteWhere(f: NoteFilter, alias = "n"): { sql: string; params: st
     else {
       parts.push(`${alias}.space IN (${f.spaces.map(() => "?").join(", ")})`);
       params.push(...f.spaces);
+    }
+  }
+  if (f.ids) {
+    if (f.ids.length === 0) parts.push("1 = 0");
+    else {
+      parts.push(`${alias}.id IN (${f.ids.map(() => "?").join(", ")})`);
+      params.push(...f.ids);
     }
   }
   for (const k of ["type", "status", "owner"] as const) {
@@ -178,9 +187,10 @@ export class IndexStore {
     return (await this.db.all("SELECT * FROM notes ORDER BY id")).map(toNote);
   }
 
-  async listNotes(f: NoteFilter & { limit?: number | undefined; after?: string | undefined }): Promise<NoteRow[]> {
+  async listNotes(f: NoteFilter & { limit?: number | undefined; after?: string | undefined; sort?: "id" | "updated" | undefined }): Promise<NoteRow[]> {
     const w = noteWhere(f);
-    const sql = `SELECT n.* FROM notes n WHERE 1 = 1${w.sql}${f.after ? " AND n.id > ?" : ""} ORDER BY n.id LIMIT ?`;
+    const order = f.sort === "updated" ? "n.updated_at DESC, n.id" : "n.id";
+    const sql = `SELECT n.* FROM notes n WHERE 1 = 1${w.sql}${f.after ? " AND n.id > ?" : ""} ORDER BY ${order} LIMIT ?`;
     const params: (string | number)[] = [...w.params];
     if (f.after) params.push(f.after);
     params.push(f.limit ?? 50);
