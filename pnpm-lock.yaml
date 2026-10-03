@@ -51,6 +51,9 @@ importers:
       '@e2e-dev/web':
         specifier: ^0.11.2
         version: 0.11.2(e2e@0.16.0(@ai-sdk/openai-compatible@3.0.62(zod@4.6.5))(@ai-sdk/openai@4.0.83(zod@4.6.5))(ai@7.0.127(zod@4.6.5)))(playwright@1.63.0)
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
       ai:
         specifier: ^7.0.0
         version: 7.0.127(zod@4.6.5)
@@ -63,6 +66,15 @@ importers:
       typescript:
         specifier: ^6.0.0
         version: 6.0.3
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
+      y-websocket:
+        specifier: ^3.1.0
+        version: 3.1.0(yjs@13.6.33)
+      yjs:
+        specifier: ^13.6.33
+        version: 13.6.33
 
   apps/web:
     dependencies:

@@ -1,17 +1,8 @@
 import { describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
-import { api, unique } from './support.ts';
+import { api, RAW, scratchNote, unique } from './support.ts';
 
 /** Every test works on a note of its own: the targets share one server and run side by side. */
-const RAW = (title: string) => `---\ntype: note\nstatus: draft\nowner: ana\n---\n# ${title}\n\nFirst paragraph.\n`;
-
-async function scratchNote(base: string | undefined, title = 'Scratch note') {
-  const id = `scratch/${unique('n')}`;
-  const res = await api(base, '/api/v1/notes', { method: 'POST', body: { id, content: RAW(title) } });
-  expect(res.status).toBe(201);
-  return id;
-}
-
 describe('editing', { tags: ['editing'], session: 'admin' }, () => {
   test('saves an edit as a commit and shows it in the history', { tags: ['smoke'] }, async ({ app, screen }) => {
     const id = await scratchNote(app.baseUrl);
@@ -21,7 +12,8 @@ describe('editing', { tags: ['editing'], session: 'admin' }, () => {
     await editor.fill(`${RAW('Scratch note')}\nEvery delivery has a unique id header.\n`);
     await screen.getByRole('button', 'Save').tap();
     await expect(screen.getByText(/Saved as commit [0-9a-f]{7}/)).toBeVisible();
-    await expect(screen.getByText('Every delivery has a unique id header.')).toBeVisible();
+    // the shared editor stays open after a save: the text is in the editor and in the preview
+    await expect(screen.getByText('Every delivery has a unique id header.').first()).toBeVisible();
 
     await screen.getByRole('tab', 'History').tap();
     await expect(screen.getByRole('table', 'Changes')).toContainText('Every delivery has a unique id header.');

@@ -9,7 +9,7 @@ const app = {
   command: {
     executable: 'node',
     args: ['scripts/serve.mjs', '{port}'],
-    env: { DFL_ADMIN_TOKEN: TOKEN, DFL_RATE_LIMIT: '0', DFL_PUBLIC_URL: 'http://127.0.0.1:{port}' },
+    env: { DFL_ADMIN_TOKEN: TOKEN, DFL_RATE_LIMIT: '0', DFL_RSA_BITS: '2048', DFL_PUBLIC_URL: 'http://127.0.0.1:{port}' },
     log: '.e2e/logs/app.log',
   },
   readyUrl: 'http://127.0.0.1:{port}/health',

@@ -1,3 +1,5 @@
+import { expect } from 'e2e';
+
 /** A token that only exists in the throwaway server `scripts/serve.mjs` starts for a run. */
 export const TOKEN = 'dfl_e2e_framework_token';
 
@@ -23,3 +25,13 @@ export async function openInEnglish(app: { open(path: string): Promise<void> }, 
   await browser.evaluate(() => localStorage.setItem('dfl-lang', 'en'));
   await app.open(path);
 }
+
+export const RAW = (title: string) => `---\ntype: note\nstatus: draft\nowner: ana\n---\n# ${title}\n\nFirst paragraph.\n`;
+
+export async function scratchNote(base: string | undefined, title = 'Scratch note') {
+  const id = `scratch/${unique('n')}`;
+  const res = await api(base, '/api/v1/notes', { method: 'POST', body: { id, content: RAW(title) } });
+  expect(res.status).toBe(201);
+  return id;
+}
+
