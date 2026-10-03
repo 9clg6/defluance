@@ -11,6 +11,8 @@ export interface GithubPort {
   handleWebhook(input: { event: string; delivery: string | null; signature: string | null; body: string }): Promise<{ status: number; message: string }>;
   /** Re-read issues and pull requests changed since the last sync. */
   resync(): Promise<{ issues: number; pulls: number }>;
+  /** Open a pull request from a pushed branch. */
+  createPullRequest(repo: string, input: { title: string; body: string; head: string; base: string }): Promise<{ number: number; url: string }>;
   /** Post a comment on a pull request. */
   comment(repo: string, number: number, body: string): Promise<void>;
 }

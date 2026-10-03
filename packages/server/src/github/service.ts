@@ -63,6 +63,10 @@ export class GithubService implements GithubPort {
     return { key: `${repo}#${r.number}`, number: r.number, url: r.url };
   }
 
+  async createPullRequest(repo: string, input: { title: string; body: string; head: string; base: string }) {
+    return this.client.createPullRequest(repo, input);
+  }
+
   async comment(repo: string, number: number, body: string): Promise<void> {
     await this.client.upsertComment(repo, number, IMPACT_MARKER, body);
   }

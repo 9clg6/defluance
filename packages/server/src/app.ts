@@ -5,6 +5,7 @@ import { HttpError } from "./errors.js";
 import { Metrics } from "./metrics.js";
 import { useMiddleware } from "./middleware.js";
 import { authenticate, authRoutes } from "./routes/auth.js";
+import { draftRoutes } from "./routes/drafts.js";
 import { githubRoutes } from "./routes/github.js";
 import { problem, router } from "./routes/http.js";
 import { keyRoutes } from "./routes/keys.js";
@@ -46,6 +47,7 @@ export function createApp(ctx: Ctx) {
   app.route("/", keyRoutes(ctx));
   app.route("/", noteRoutes(ctx));
   app.route("/", searchRoutes(ctx));
+  app.route("/", draftRoutes(ctx));
   app.route("/", githubRoutes(ctx));
   app.route("/", uiRoutes(ctx));
 

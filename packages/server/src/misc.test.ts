@@ -128,6 +128,7 @@ describe("GitHub webhook route", () => {
       createIssue: async () => ({ key: "acme/app#1", number: 1, url: "u" }),
       handleWebhook: async (i) => (seen.push(i), { status: 202, message: "queued" }),
       resync: async () => ({ issues: 0, pulls: 0 }),
+      createPullRequest: async () => ({ number: 1, url: "u" }),
       comment: async () => undefined,
     };
     const s = await makeServer({ github });

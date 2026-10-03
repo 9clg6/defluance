@@ -91,3 +91,33 @@ describe("git operations", () => {
     expect(racing[2]?.status).toBe("fulfilled");
   });
 });
+
+describe("branches", () => {
+  it("lists, diffs and merges a branch written by an agent, and reports what would conflict", async () => {
+    const { listBranches, changedFiles, branchPatch, mergeable, mergeBranch, deleteBranch, currentBranch } = await import("./git.js");
+    await writeAndCommit(repo, "a.md", "one\n", { message: "add a", author });
+    await writeAndCommit(repo, "a.md", "two\n", { message: "agent edit", author: { name: "bot", email: "bot@x" }, branch: "defluance/bot/a" });
+    const base = await currentBranch(repo);
+    expect(base).toBe("main");
+
+    const [b] = await listBranches(repo, "defluance/", base);
+    expect(b).toMatchObject({ name: "defluance/bot/a", author: "bot", subject: "agent edit", ahead: 1 });
+    expect(await changedFiles(repo, base, "defluance/bot/a")).toEqual([{ status: "M", path: "a.md" }]);
+    expect(await branchPatch(repo, base, "defluance/bot/a", "a.md")).toMatch(/-one\n\+two/);
+    expect(await mergeable(repo, base, "defluance/bot/a")).toBe(true);
+
+    // main moves on in the same lines: now it would conflict
+    await writeAndCommit(repo, "a.md", "three\n", { message: "human edit", author });
+    expect(await mergeable(repo, base, "defluance/bot/a")).toBe(false);
+    await expect(mergeBranch(repo, "defluance/bot/a", "merge", author)).rejects.toMatchObject({ reason: "conflict" });
+    expect(await readFile(join(repo, "a.md"), "utf8")).toBe("three\n"); // untouched, and no merge left half done
+    await expect(readFile(join(repo, ".git/MERGE_HEAD"), "utf8")).rejects.toThrow();
+
+    await writeAndCommit(repo, "b.md", "other\n", { message: "agent adds b", author: { name: "bot", email: "bot@x" }, branch: "defluance/bot/b" });
+    const head = await mergeBranch(repo, "defluance/bot/b", "Merge draft b", author);
+    expect(head).toMatch(/^[0-9a-f]{40}$/);
+    expect(await readFile(join(repo, "b.md"), "utf8")).toBe("other\n");
+    await deleteBranch(repo, "defluance/bot/b");
+    expect((await listBranches(repo, "defluance/", base)).map((x) => x.name)).toEqual(["defluance/bot/a"]);
+  });
+});

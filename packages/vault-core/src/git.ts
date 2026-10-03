@@ -149,3 +149,104 @@ export async function pushToOrigin(repo: string, ref = "HEAD"): Promise<boolean>
   await g.push(["origin", ref]);
   return true;
 }
+
+// ---------------------------------------------------------------- branches (drafts written by agents)
+
+export interface BranchInfo {
+  name: string;
+  /** Commit date of the tip, ISO 8601. */
+  date: string;
+  author: string;
+  /** Subject of the tip commit. */
+  subject: string;
+  /** Commits on the branch that are not on `base`. */
+  ahead: number;
+}
+
+export async function currentBranch(repo: string): Promise<string> {
+  return (await git(repo).raw(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+}
+
+/** Local branches under a prefix, newest first. */
+export async function listBranches(repo: string, prefix: string, base: string): Promise<BranchInfo[]> {
+  const g = git(repo);
+  const out = await g.raw(["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)%09%(committerdate:iso-strict)%09%(authorname)%09%(subject)", `refs/heads/${prefix}`]);
+  const rows = out.split("\n").filter(Boolean).map((l) => l.split("\t"));
+  return Promise.all(
+    rows.map(async ([name = "", date = "", author = "", subject = ""]) => ({
+      name,
+      date,
+      author,
+      subject,
+      ahead: Number((await g.raw(["rev-list", "--count", `${base}..${name}`])).trim()) || 0,
+    })),
+  );
+}
+
+/** Files a branch changed since it left `base`, with git's status letter (A, M, D). */
+export async function changedFiles(repo: string, base: string, branch: string): Promise<{ status: string; path: string }[]> {
+  const out = await git(repo).raw(["diff", "--name-status", "--no-renames", `${base}...${branch}`]);
+  return out.split("\n").filter(Boolean).map((l) => {
+    const [status = "", ...rest] = l.split("\t");
+    return { status: status.charAt(0), path: rest.join("\t") };
+  });
+}
+
+/** What the branch changes in one file, as a unified diff against the point where it left `base`. */
+export async function branchPatch(repo: string, base: string, branch: string, path: string): Promise<string> {
+  return git(repo).raw(["diff", `${base}...${branch}`, "--", safePath(repo, path)]);
+}
+
+/**
+ * Whether the branch merges into `base` without conflicts, decided without touching the working tree.
+ * `null` when this git is too old to say (`merge-tree --write-tree` needs 2.38).
+ */
+export async function mergeable(repo: string, base: string, branch: string): Promise<boolean | null> {
+  try {
+    // Clean: the output is one line, the tree. A conflict adds the names of the conflicting files. (Messages are
+    // translated and the exit code is not always an error to simple-git, so neither is used.)
+    const out = await git(repo).raw(["merge-tree", "--write-tree", "--name-only", "--no-messages", base, branch]);
+    return out.split("\n").filter(Boolean).length === 1;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return /unknown option|usage:/i.test(msg) ? null : false;
+  }
+}
+
+export class MergeError extends Error {
+  constructor(
+    readonly reason: "conflict" | "dirty",
+    message: string,
+  ) {
+    super(message);
+    this.name = "MergeError";
+  }
+}
+
+/** Merge a branch into the checked-out branch with a merge commit, and return the new HEAD. Nothing is left half done on failure. */
+export function mergeBranch(repo: string, branch: string, message: string, author: Author): Promise<string> {
+  return serialized(repo, async () => {
+    const g = git(repo, author);
+    try {
+      await g.raw(["merge", "--no-ff", "-m", message, branch]);
+      // A conflict leaves the merge half done with an exit code simple-git may not report as an error.
+      const pending = await g.raw(["rev-parse", "-q", "--verify", "MERGE_HEAD"]).then((o) => o.trim(), () => "");
+      if (pending) throw new MergeError("conflict", "merge conflict");
+    } catch (e) {
+      if (e instanceof MergeError) {
+        await g.raw(["merge", "--abort"]).catch(() => undefined);
+        throw e;
+      }
+      await g.raw(["merge", "--abort"]).catch(() => undefined);
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new MergeError(/local changes|untracked working tree/i.test(msg) ? "dirty" : "conflict", msg);
+    }
+    return (await g.revparse(["HEAD"])).trim();
+  });
+}
+
+export function deleteBranch(repo: string, branch: string): Promise<void> {
+  return serialized(repo, async () => {
+    await git(repo).raw(["branch", "-D", branch]);
+  });
+}

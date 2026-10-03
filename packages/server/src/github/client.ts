@@ -103,6 +103,11 @@ export class GithubClient {
     return { number: r.number, url: r.html_url };
   }
 
+  async createPullRequest(repo: string, input: { title: string; body: string; head: string; base: string }): Promise<{ number: number; url: string }> {
+    const r = await this.json<{ number: number; html_url: string }>(await this.raw("POST", `/repos/${repo}/pulls`, await this.tokenFor(repo), input), `open a pull request in ${repo}`);
+    return { number: r.number, url: r.html_url };
+  }
+
   /** Issues and pull requests (GitHub lists both) updated since a date. */
   async listIssues(repo: string, since?: string): Promise<GhIssue[]> {
     const token = await this.tokenFor(repo);
