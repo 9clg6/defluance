@@ -5,6 +5,7 @@ import { embedMany, generateText, Output } from "ai";
 import type { z } from "zod";
 import { hashEmbedder, type Embedder } from "@defluance/shared";
 import { createLocalEmbedder, type LocalOptions } from "./local-embedder.js";
+import { createMockLlm } from "./mock-llm.js";
 
 export type LanguageModel = Parameters<typeof generateText>[0]["model"];
 
@@ -95,9 +96,11 @@ export function createEmbedder(spec: string | undefined, opts: ProviderOptions =
 /**
  * Language model from a spec: `anthropic:<model>`, `openai:<model>`, `ollama:<model>`, `openai-compatible:<model>`,
  * `gateway:<provider/model>` (Vercel AI Gateway, needs AI_GATEWAY_API_KEY). Undefined: no LLM, answers are extractive.
+ * `mock`: canned, offline answers for demos (id `mock:demo`), only when asked for by name.
  */
 export function createLlm(spec: string | undefined, opts: ProviderOptions = {}): Llm | null {
   if (!spec || spec === "none") return null;
+  if (spec === "mock") return createMockLlm();
   const env = opts.env ?? process.env;
   const { provider, model } = parseSpec(spec);
   if (!model) throw new Error(`unsupported LLM spec "${spec}" (expected provider:model)`);

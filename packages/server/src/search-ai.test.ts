@@ -111,7 +111,8 @@ describe("without a language model", () => {
 });
 
 describe("vectors computed in the background", () => {
-  const delayed = (opts: { failFirst?: boolean } = {}): Embedder & { failing: boolean } => {
+  /** `hold` keeps vectors from arriving until the test lets them, so a slow machine cannot finish them early. */
+  const delayed = (opts: { failFirst?: boolean; hold?: Promise<void> } = {}): Embedder & { failing: boolean } => {
     const inner = hashEmbedder(128);
     const e = {
       model: "local:test-model",
@@ -120,6 +121,7 @@ describe("vectors computed in the background", () => {
       failing: !!opts.failFirst,
       async embed(texts: string[]) {
         await new Promise((r) => setTimeout(r, 30));
+        await opts.hold;
         if (e.failing) throw new Error("model download failed");
         return inner.embed(texts);
       },
@@ -150,12 +152,17 @@ describe("vectors computed in the background", () => {
   });
 
   it("a new note is findable by words immediately and by meaning after its vector is computed", async () => {
-    const s = await makeServer({ embedder: delayed() });
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    const s = await makeServer({ embedder: delayed({ hold: Promise.resolve() }) });
+    const gated = delayed({ hold });
     try {
       await s.ctx.embeddingDone;
+      s.ctx.embedder.embed = gated.embed.bind(gated); // from here on, vectors wait for `release`
       await s.call("POST", "/api/v1/notes", { body: { type: "note", title: "Zanzibar", body: "Zanzibar spices export.", id: "produit/zanzibar" } });
       expect(((await s.call("GET", "/api/v1/search?q=zanzibar&mode=keyword")).body as { note: { id: string } }[])[0]?.note.id).toBe("produit/zanzibar");
       expect((await s.call("GET", "/api/v1/index/status")).body.embedding.pending).toBeGreaterThan(0);
+      release();
       await s.ctx.embeddingDone;
       expect((await s.call("GET", "/api/v1/index/status")).body.embedding.pending).toBe(0);
     } finally {

@@ -15,6 +15,7 @@ import { noteRoutes } from "./routes/notes.js";
 import { opsRoutes } from "./routes/ops.js";
 import { searchRoutes } from "./routes/search.js";
 import { systemRoutes } from "./routes/system.js";
+import { templateRoutes } from "./routes/templates.js";
 import { uiRoutes } from "./routes/ui.js";
 
 export { SESSION_COOKIE } from "./routes/auth.js";
@@ -47,6 +48,7 @@ export function createApp(ctx: Ctx) {
   app.route("/", systemRoutes(ctx));
   app.route("/", keyRoutes(ctx));
   app.route("/", noteRoutes(ctx));
+  app.route("/", templateRoutes(ctx));
   app.route("/", searchRoutes(ctx));
   app.route("/", fileRoutes(ctx));
   app.route("/", draftRoutes(ctx));

@@ -49,7 +49,7 @@ With Docker: `docker build --build-arg EMBED=local -t defluance:local .` bakes t
 
 ## Smart search and deep questions
 
-Set a language model on the server: `DFL_LLM=anthropic:claude-sonnet-5-5` (or `openai:`, `ollama:`, `gateway:`).
+Set a language model on the server: `DFL_LLM=anthropic:claude-sonnet-5-5` (or `openai:`, `ollama:`, `gateway:`). `DFL_LLM=mock` is a canned offline model for demos (id `mock:demo`): it answers with citations, rewrites searches and drafts notes, but has no tool calling, so deep search is not offered.
 
 - **Smart search** makes one model call to plan, and one more if you tick rerank. The model sees your question, and the list of note types and statuses of the vault. It sees note text only when reranking (the first lines of the top results). It can only turn its guesses into filters that exist in your vault, and a guessed filter that leaves fewer than three results is dropped. The panel "Understood as" shows what it did.
 - **Research in depth** (a checkbox next to Ask) lets the model search, read notes and follow links over up to six steps before it answers, for questions that span several specs ("what breaks if we change sessions?"). It needs a model that supports tools. The answer lists the steps it took, and, as always, every citation is a passage it was actually given.

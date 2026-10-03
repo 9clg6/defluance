@@ -16,7 +16,8 @@ export function opsRoutes(ctx: Ctx, metrics: Metrics) {
     }
     checks["git"] = (await head(ctx.root).then(() => "ok").catch(() => "no commits yet"));
     checks["embedder"] = ctx.embedder.model;
-    checks["llm"] = ctx.llm?.id ?? "none (extractive answers)";
+    checks["llm"] = ctx.llm?.id.startsWith("mock:") ? "mock (demo model, canned answers)" : (ctx.llm?.id ?? "none (extractive answers)");
+    checks["github"] = ctx.github?.mock ? "mock" : ctx.github ? "configured" : "none";
     await ctx.getConfig();
     await ctx.getSchema();
     checks["vault_files"] = [ctx.problems.config, ctx.problems.schema].filter(Boolean).join("; ") || "ok";

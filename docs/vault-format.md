@@ -15,8 +15,35 @@ Spec publique, version 0.1. Un vault est un dossier de fichiers `.md`, normaleme
 
 - Une fiche = un fichier `.md`. Son **id** est son chemin relatif sans `.md` (`specs/auth-login`).
 - Les dossiers dont le nom commence par `.` (`.git`, `.obsidian`, `.defluance`) et `node_modules` sont ignorés.
-- `.defluance/schema.yaml` et `.defluance/templates/<type>.md` configurent le vault. Les deux sont optionnels, des valeurs par défaut existent.
+- `.defluance/schema.yaml` et `.defluance/templates/<nom>.md` (voir « Templates ») configurent le vault. Les deux sont optionnels, des valeurs par défaut existent.
 - Un dossier racine peut servir d'espace (permissions, voir l'architecture).
+
+## Templates
+
+`defluance new <type> "Titre"` et **New note** créent une fiche à partir d'un template : `.defluance/templates/<nom>.md`, ou, à défaut, le template intégré du type (`functional-spec`, `technical-spec`, `adr`, `note`, `glossary`, `component`). Un fichier du vault qui porte le nom d'un template intégré le remplace ; le supprimer rend le template intégré. Un nom s'écrit en minuscules, chiffres et tirets (`rfc`, `post-mortem`), 40 caractères au plus, et le fichier ne dépasse pas 20 Ko.
+
+```markdown
+---
+type: {{type}}
+status: draft
+owner: {{owner}}
+---
+
+# {{title}}
+
+## Contexte
+<!-- ai: pourquoi maintenant, en deux phrases, sans jargon -->
+
+## Décision
+<!-- ai: une décision claire, les alternatives écartées vont dans « Conséquences » -->
+
+## Conséquences
+```
+
+- Variables : `{{type}}`, `{{title}}`, `{{owner}}`.
+- Un template doit produire une fiche lisible : le frontmatter définit `type`, `status` et `owner`.
+- **Indications pour le modèle** : un commentaire HTML `<!-- ai: consigne -->` est une instruction pour le modèle de langage qui rédige la fiche (bouton « Rédiger » de l'éditeur, `POST /api/v1/notes/{id}/generate`). Il est **retiré**, avec sa ligne, quand une fiche est créée à la main : il n'apparaît jamais dans le vault. Le modèle, lui, reçoit le template tel qu'il est écrit.
+- Gestion par l'API (administrateurs uniquement, jamais les agents) : `GET /api/v1/templates` (`source` : `builtin`, `vault` ou `override`), `PUT /api/v1/templates/{nom}` avec `{ "content": "…" }`, `DELETE /api/v1/templates/{nom}`. Chaque écriture est un commit `template: <nom>`.
 
 ## Frontmatter
 

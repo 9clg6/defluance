@@ -38,6 +38,8 @@ export async function startServe(vault: string, o: ServeOptions, io: IO): Promis
   io.out(`Defluance is running at ${running.url}`);
   io.out(`Vault: ${resolve(vault)}`);
   io.out(`Embeddings: ${running.ctx.embedder.model}. Answers: ${running.ctx.llm?.id ?? "extractive (set DFL_LLM for generated answers)"}`);
+  if (running.ctx.llm?.id.startsWith("mock:")) io.out("MOCK MODE: the language model is a canned demo (DFL_LLM=mock). Answers and drafts are not real.");
+  if (running.ctx.github?.mock) io.out("MOCK MODE: GitHub is an in-process fake (DFL_GITHUB=mock). Nothing reaches GitHub.");
   if (running.ctx.embedder.model.startsWith("hash")) {
     io.out("Search matches words, not meaning. For search by meaning, on this machine: DFL_EMBED=local (one-time download of about 600 MB).");
   }

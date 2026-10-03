@@ -7,6 +7,7 @@ import type { GithubPort } from "../ports.js";
 import * as svc from "../services/index.js";
 import { PERMS } from "../system.js";
 import { GithubClient, toIssue, type GhIssue } from "./client.js";
+import { MockGithub, loadMockNodes } from "./mock.js";
 
 /** Verify `X-Hub-Signature-256`: HMAC SHA-256 of the raw body, constant-time comparison. */
 export function verifySignature(secret: string, body: string, header: string | null): boolean {
@@ -188,8 +189,16 @@ export class GithubService implements GithubPort {
   }
 }
 
-/** Build the connector from `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`. Null if not configured. */
-export function githubFromEnv(ctx: Ctx, env: Record<string, string | undefined> = process.env): GithubService | null {
+/**
+ * Build the connector from `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`. Null if not configured.
+ * `DFL_GITHUB=mock` is explicit and wins over the real variables: an in-process fake for demos, never a default.
+ */
+export function githubFromEnv(ctx: Ctx, env: Record<string, string | undefined> = process.env): GithubPort | null {
+  if (env["DFL_GITHUB"] === "mock") {
+    const mock = new MockGithub(ctx, loadMockNodes(env["DFL_GITHUB_MOCK_FILE"]));
+    ctx.log({ msg: "MOCK MODE: GitHub is an in-process fake (DFL_GITHUB=mock): issues and pull requests are demo data, nothing reaches GitHub" });
+    return mock;
+  }
   const appId = env["GITHUB_APP_ID"];
   const privateKey = env["GITHUB_APP_PRIVATE_KEY"];
   const secret = env["GITHUB_WEBHOOK_SECRET"];

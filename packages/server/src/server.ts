@@ -32,6 +32,9 @@ export async function ensureBootstrap(ctx: Ctx, env = process.env): Promise<stri
 export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const ctx = await createContext(opts);
   ctx.github ??= githubFromEnv(ctx, opts.env ?? process.env);
+  if (ctx.llm?.id.startsWith("mock:")) ctx.log({ msg: "MOCK MODE: the language model is a canned demo model (DFL_LLM=mock): answers and drafts are not real" });
+  // the demo connector has no webhooks to fill the graph: load its objects now
+  if (ctx.github?.mock) await ctx.github.resync();
   const bootstrapToken = await ensureBootstrap(ctx, opts.env ?? process.env);
   await ctx.jobs.recover();
   await indexNow(ctx);

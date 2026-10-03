@@ -63,6 +63,12 @@ export function noteRoutes(ctx: Ctx) {
   }), async (c) => c.json(await svc.renameNote(ctx, actorOf(c), c.req.valid("param").id, c.req.valid("json").to), 200));
   r.openapi(createRoute({ method: "get", path: "/api/v1/tree", summary: "Every readable note, to draw the vault as folders", tags: ["notes"], responses: { 200: ok("Notes"), ...errs } }), async (c) => c.json(await svc.vaultTree(ctx, actorOf(c)), 200));
 
+  r.openapi(createRoute({
+    method: "post", path: "/api/v1/notes/{id}/generate", summary: "Propose a filled-in or improved version of a note", tags: ["notes"],
+    description: "Asks the language model; never saves anything. `fill` completes the sections of the note from its template, `improve` rewrites the text following `instruction`. `content` is unsaved editor text and replaces the stored text as input. The proposal keeps the note's type, status and owner, and links to notes that do not exist are removed (see `warnings`). Needs `write` on the note's space; agents cannot call it. 503 without a language model, 422 for a private note unless DFL_PRIVATE_LLM=allow and your key is unlocked.",
+    request: { params: idParam, body: jsonBody(z.object({ mode: z.enum(["fill", "improve"]), instruction: z.string().max(4000).optional(), content: z.string().max(200_000).optional() })) },
+    responses: { 200: ok("Proposed text"), ...errs },
+  }), async (c) => c.json(await svc.generateForNote(ctx, actorOf(c), c.req.valid("param").id, c.req.valid("json")), 200));
   r.openapi(createRoute({ method: "get", path: "/api/v1/notes/{id}/links", summary: "Outgoing and incoming links, grouped by type", tags: ["notes"], request: { params: idParam }, responses: { 200: ok("Links"), ...errs } }), async (c) =>
     c.json(await svc.noteLinks(ctx, actorOf(c), c.req.valid("param").id), 200),
   );

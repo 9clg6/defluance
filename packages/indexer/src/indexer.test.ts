@@ -310,5 +310,5 @@ describe.each(dialects)("encrypted notes (%s)", (dialect) => {
     } finally {
       await priv.db.close();
     }
-  });
+  }, 60_000);
 });

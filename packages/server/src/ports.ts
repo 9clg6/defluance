@@ -2,6 +2,8 @@ import type { Handler } from "@defluance/indexer";
 
 /** What the server needs from the GitHub connector. */
 export interface GithubPort {
+  /** True for the in-process demo connector (`DFL_GITHUB=mock`): nothing leaves the machine. */
+  readonly mock?: boolean;
   /** Background jobs the connector registers (webhook processing, resync). */
   handlers?(): Record<string, Handler>;
   /** `owner/repo` list the App is installed on. */

@@ -7,3 +7,5 @@ export * from "./impact.js";
 export * from "./keyring.js";
 export * from "./drafts.js";
 export * from "./files.js";
+export * from "./generate.js";
+export * from "./templates.js";
