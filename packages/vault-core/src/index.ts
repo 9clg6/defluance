@@ -4,3 +4,4 @@ export * from "./vault.js";
 export * from "./validate.js";
 export * from "./templates.js";
 export * from "./git.js";
+export * from "./config.js";

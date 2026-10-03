@@ -13,3 +13,5 @@ export type LinkType = (typeof LINK_TYPES)[number];
 export const NOTE_STATUSES = ["draft", "review", "approved", "implemented", "deprecated"] as const;
 
 export type NoteStatus = (typeof NOTE_STATUSES)[number];
+
+export * from "./embedder.js";

@@ -71,8 +71,17 @@ export function buildVault(root: string, notes: ParsedNote[]): Vault {
 }
 
 /** Directories never scanned: dot-folders (.git, .obsidian, .defluance) and node_modules. */
-function skipped(rel: string): boolean {
+export function skipped(rel: string): boolean {
   return rel.split(/[\\/]/).some((seg) => seg.startsWith(".") || seg === "node_modules");
+}
+
+/** Relative POSIX paths of all notes under root. */
+export async function listMarkdown(root: string): Promise<string[]> {
+  const entries = await readdir(root, { recursive: true });
+  return entries
+    .filter((e) => e.toLowerCase().endsWith(".md") && !skipped(e))
+    .map((e) => e.split("\\").join("/"))
+    .sort();
 }
 
 export async function loadVault(root: string, linkTypes?: readonly string[]): Promise<Vault> {

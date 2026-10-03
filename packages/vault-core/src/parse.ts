@@ -120,6 +120,12 @@ function frontmatterLinks(fm: Record<string, unknown>, linkTypes: readonly strin
   return out;
 }
 
+/** Body of a note without its frontmatter. */
+export function bodyOf(raw: string): string {
+  const m = FRONTMATTER.exec(raw);
+  return m ? raw.slice(m[0].length) : raw;
+}
+
 export function parseNote(path: string, raw: string, options: ParseOptions = {}): ParsedNote {
   const linkTypes = options.linkTypes ?? LINK_TYPES;
   const id = path.replace(/\.md$/i, "");
