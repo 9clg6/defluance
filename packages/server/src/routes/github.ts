@@ -16,7 +16,8 @@ export function githubRoutes(ctx: Ctx) {
     const linked = [...config.repos, ...config.spaces.flatMap((s) => s.repos)].map((r) => r.toLowerCase());
     const publicRepos = ctx.github ? (await getPublicRepos(ctx)).filter((r) => linked.includes(r.toLowerCase()) && !installed.includes(r.toLowerCase())) : [];
     const publicSync = (await Promise.all(publicRepos.map((r) => getPublicState(ctx, r)))).flatMap((s) => (s ? [{ repo: s.repo, at: s.at, partial: s.partial, rateLimitedUntil: s.rateLimitedUntil }] : []));
-    return c.json({ configured: !!ctx.github, repos, publicRepos, publicSync, spaces: config.spaces.map((s) => ({ name: s.name, repos: s.repos })), defaultRepos: config.repos, vaultRepo: config.vaultRepo, webhookUrl: `${ctx.publicUrl}/webhooks/github`, oauth: !!ctx.oauth }, 200);
+    const permissions = ctx.github?.permissions ? await ctx.github.permissions() : null;
+    return c.json({ configured: !!ctx.github, permissions, repos, publicRepos, publicSync, spaces: config.spaces.map((s) => ({ name: s.name, repos: s.repos })), defaultRepos: config.repos, vaultRepo: config.vaultRepo, webhookUrl: `${ctx.publicUrl}/webhooks/github`, oauth: !!ctx.oauth }, 200);
   });
   r.openapi(createRoute({ method: "get", path: "/api/v1/github/nodes/{owner}/{repo}/{n}", summary: "A cached issue or pull request", tags: ["github"], request: { params: z.object({ owner: z.string(), repo: z.string(), n: z.string() }) }, responses: { 200: ok("Node"), ...errs } }), async (c) => {
     const p = c.req.valid("param");

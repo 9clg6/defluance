@@ -29,6 +29,8 @@ function fakeGithub() {
     /** Answer 403 once this many public requests were made. */
     blockAfter: Infinity,
     publicCalls: 0,
+    /** What GitHub says the App may do; null makes `/app` fail. */
+    appPermissions: { metadata: "read", issues: "read", pull_requests: "read" } as Record<string, string> | null,
   };
   const calls: { path: string; auth: string | null }[] = [];
   const reply = (b: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json", ...headers } });
@@ -37,6 +39,7 @@ function fakeGithub() {
     const auth = (init?.headers as Record<string, string> | undefined)?.["authorization"] ?? null;
     calls.push({ path: u.pathname + u.search, auth });
     const p = u.pathname;
+    if (p === "/app") return st.appPermissions ? reply({ permissions: st.appPermissions }) : reply({ message: "bad credentials" }, 401);
     if (p === "/app/installations") return reply([{ id: 1 }]);
     if (p === "/app/installations/1/access_tokens") return reply({ token: "ghs_inst", expires_at: new Date(Date.now() + 3600_000).toISOString() });
     if (p === "/installation/repositories") return reply({ repositories: st.installed.map((full_name) => ({ full_name })) });
@@ -86,6 +89,23 @@ async function setup(init: (st: ReturnType<typeof fakeGithub>["st"]) => void = (
   };
   return { s, gh, put, items, status, link, cfg: () => readFileSync(join(s.root, ".defluance/config.yaml"), "utf8") };
 }
+
+describe("what the App may do", () => {
+  it("status says what the App is allowed to do, read once from GitHub and kept for a while", async () => {
+    const { s, gh, status } = await setup();
+    expect((await status()).permissions).toEqual({ metadata: "read", issues: "read", pull_requests: "read" });
+    gh.st.appPermissions = { issues: "write" }; // changed on GitHub meanwhile
+    expect((await status()).permissions).toEqual({ metadata: "read", issues: "read", pull_requests: "read" }); // cached
+    expect(s.logs.join("")).not.toContain("could not read the App permissions");
+  });
+
+  it("is null when GitHub does not answer, and the failure is logged", async () => {
+    const { s, gh, status } = await setup();
+    gh.st.appPermissions = null;
+    expect((await status()).permissions).toBeNull();
+    expect(s.logs.join("")).toContain("could not read the App permissions");
+  });
+});
 
 describe("linking a public repository", () => {
   it("validates it without credentials, links it like an installed one, commits, audits and syncs it", async () => {

@@ -26,6 +26,26 @@ async function width(page: Page, selector: string) {
 test.describe("note page layout", () => {
   test.beforeEach(async ({ page }) => signIn(page));
 
+  for (const [label, permissions, shown] of [
+    ["read-only", { metadata: "read", issues: "read", pull_requests: "read" }, false],
+    ["allowed to write", { metadata: "read", issues: "write", pull_requests: "write" }, true],
+    ["unknown", null, true],
+  ] as const) {
+    test(`the GitHub issue chip is ${shown ? "offered" : "hidden"} when the App is ${label}`, async ({ page, request }) => {
+      await page.route("**/api/v1/github/status", (route) => route.fulfill({ json: { configured: true, permissions, repos: [], spaces: [], defaultRepos: ["acme/app"], webhookUrl: "http://x/webhooks/github", oauth: false } }));
+      const id = await scratch(request);
+      try {
+        await page.goto(`/n/${id}/`);
+        const chip = page.getByRole("group", { name: "Actions" }).getByRole("button", { name: /GitHub issue/ });
+        await expect(page.getByRole("group", { name: "Actions" }).getByRole("button", { name: "Delete" })).toBeVisible();
+        if (shown) await expect(chip).toBeVisible();
+        else await expect(chip).toHaveCount(0);
+      } finally {
+        await request.delete(`/api/v1/notes/${encodeURIComponent(id)}`, { headers: auth });
+      }
+    });
+  }
+
   test("at 1440px the editor has the page and there is no right column", async ({ page, request }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     const id = await scratch(request);

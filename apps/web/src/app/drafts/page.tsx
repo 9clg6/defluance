@@ -7,6 +7,7 @@ import { Suspense, useState } from "react";
 import { DiffTable } from "@/components/DiffTable";
 import { Badge, Button, Card, Dialog, DialogContent, EmptyState, ErrorBox, PageAlert, PageSkeleton } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
+import { appCanWrite } from "@/lib/repo";
 import { api, ApiError, errorMessage, notePath, qs } from "@/lib/api";
 import { can, useAuth } from "@/lib/auth";
 import { relativeTime } from "@/lib/frontmatter";
@@ -122,7 +123,7 @@ function Review({ branch, writable, onDone }: { branch: string; writable: boolea
   if (detail.error) return <PageAlert title={t("error.title")}>{errorMessage(detail.error)}</PageAlert>;
   const d = detail.data;
   if (!d) return null;
-  const canPr = !!gh.data?.configured && !!gh.data.vaultRepo;
+  const canPr = !!gh.data?.configured && !!gh.data.vaultRepo && appCanWrite(gh.data, "pull_requests");
 
   return (
     <div className="space-y-4">

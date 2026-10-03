@@ -47,6 +47,11 @@ export class GithubClient {
     return `${body}.${createSign("RSA-SHA256").update(body).sign(this.key).toString("base64url")}`;
   }
 
+  /** What the App is allowed to do on repositories (`issues: "write"`, `pull_requests: "read"`...), as set on GitHub. */
+  async permissions(): Promise<Record<string, string>> {
+    return (await this.json<{ permissions?: Record<string, string> }>(await this.raw("GET", "/app", this.appJwt()), "app")).permissions ?? {};
+  }
+
   private async raw(method: string, path: string, auth: string, body?: unknown): Promise<Response> {
     return this.f(`${this.api}${path}`, {
       method,

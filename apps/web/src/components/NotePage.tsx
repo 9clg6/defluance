@@ -28,11 +28,12 @@ import { api, ApiError, errorMessage, idFromPath, noteApi, notePath, qs } from "
 import { can, useAuth } from "@/lib/auth";
 import { relativeTime, splitFrontmatter, stripTitle } from "@/lib/frontmatter";
 import { replaceYText } from "@/lib/generate";
+import { appCanWrite } from "@/lib/repo";
 import { useT } from "@/lib/i18n";
 import { readStoredSide, storeSide } from "@/lib/split";
 import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import type { AuditEntry, GenerateResult, NoteDetail, NoteLinks, Subgraph, VaultSchema, WriteResult } from "@/lib/types";
+import type { AuditEntry, GenerateResult, GithubStatus, NoteDetail, NoteLinks, Subgraph, VaultSchema, WriteResult } from "@/lib/types";
 
 type TabId = "read" | "edit" | "history" | "graph" | "ask" | "audit";
 const TABS: TabId[] = ["read", "edit", "history", "graph", "ask", "audit"];
@@ -123,6 +124,7 @@ function Loaded({ id }: { id: string }) {
   const refreshAll = useRefreshAll();
 
   const n = note.data;
+  const gh = useApi<GithubStatus>(n && can(me, "issues", n.space) && !n.private ? "/api/v1/github/status" : null);
   const writable = can(me, "write", n?.space);
   // The language model only writes into drafts, never into private notes, and only when the server has one.
   const canGenerate = writable && !!me?.capabilities.llm && n?.status === "draft" && !n.private && !n.locked;
@@ -427,7 +429,7 @@ function Loaded({ id }: { id: string }) {
               />
             </>
           )}
-          {can(me, "issues", n.space) && !n.private && <Chip icon={CircleDot} label={t("issue.open")} onClick={() => setIssueOpen(true)} />}
+          {can(me, "issues", n.space) && !n.private && appCanWrite(gh.data, "issues") && <Chip icon={CircleDot} label={t("issue.open")} onClick={() => setIssueOpen(true)} />}
           <Popover open={linksOpen} onOpenChange={setLinksOpen}>
             <PopoverTrigger asChild>
               <Chip icon={Link2} label={t("note.links", { n: flatLinks.length + flatIncoming })} />

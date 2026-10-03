@@ -262,6 +262,8 @@ export interface GithubStatus {
   defaultRepos: string[];
   /** Linked repositories that are synced through the public API, with no App installation. */
   publicRepos?: string[];
+  /** What the GitHub App may do on repositories ("read" or "write" per kind of object). Null or absent: unknown. */
+  permissions?: Record<string, string> | null;
   webhookUrl: string;
   oauth: boolean;
 }

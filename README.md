@@ -68,7 +68,7 @@ The `docs/` folder is itself a Defluance vault, validated in CI.
 | Variable | Purpose |
 |----------|---------|
 | `DFL_EMBED` | `hash` (words only, default), `local` (meaning, on your machine), `ollama:<model>`, `openai:<model>`, `openai-compatible:<model>` |
-| `DFL_LLM` | `anthropic:<model>`, `openai:<model>`, `ollama:<model>`, `gateway:<provider/model>`. Unset: answers are the matching passages |
+| `DFL_LLM` | `anthropic:<model>`, `openai:<model>`, `openrouter:<model>`, `ollama:<model>`, `gateway:<provider/model>`. Unset: answers are the matching passages |
 | `DFL_DATABASE_URL` | Postgres URL. Unset: SQLite in the data folder |
 | `DFL_ADMIN_TOKEN` | A fixed admin token (Docker). Otherwise one is generated on first start |
 | `DFL_ADMINS`, `DFL_DEFAULT_ROLE` | GitHub logins that are admins, and the role everyone else gets (`reader`, `editor`) |

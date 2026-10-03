@@ -58,6 +58,20 @@ export class GithubService implements GithubPort {
     return this.pub.validate(repo);
   }
 
+  private perms: { at: number; value: Record<string, string> | null } | null = null;
+
+  /** Cached for ten minutes: it only changes when somebody edits the App on GitHub. */
+  async permissions(): Promise<Record<string, string> | null> {
+    const now = this.ctx.now().getTime();
+    if (this.perms && now - this.perms.at < 10 * 60_000) return this.perms.value;
+    const value = await this.client.permissions().catch((e: unknown) => {
+      this.ctx.log({ msg: "could not read the App permissions", error: String(e) });
+      return null;
+    });
+    this.perms = { at: now, value };
+    return value;
+  }
+
   /** Linked repositories read without the App. A repository the App can see is never one of them: the installed path wins. */
   private async publicOnly(): Promise<string[]> {
     const installed = (await this.repos().catch(() => [] as string[])).map((r) => r.toLowerCase());

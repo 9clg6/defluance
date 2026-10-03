@@ -62,6 +62,10 @@ export class MockGithub implements GithubPort {
     return { "github.resync": (p) => this.resync((p as { repo?: string } | null)?.repo).then(() => undefined) };
   }
 
+  async permissions(): Promise<Record<string, string>> {
+    return { metadata: "read", issues: "write", pull_requests: "write" };
+  }
+
   async repos(): Promise<string[]> {
     const config = await this.ctx.getConfig();
     return [...new Set([...this.nodes.map((n) => n.key.split("#")[0] as string), ...config.repos, ...config.spaces.flatMap((s) => s.repos)])].sort();

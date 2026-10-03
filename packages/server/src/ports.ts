@@ -6,6 +6,8 @@ export interface GithubPort {
   readonly mock?: boolean;
   /** Background jobs the connector registers (webhook processing, resync). */
   handlers?(): Record<string, Handler>;
+  /** What the App may do (`issues`, `pull_requests`: "read" or "write"), so the interface offers only what works. Null when unknown. */
+  permissions?(): Promise<Record<string, string> | null>;
   /** `owner/repo` list the App is installed on. */
   repos(): Promise<string[]>;
   /** Check a repository through GitHub's public API, without the App. Returns its canonical `owner/name`; throws an HttpError. */
