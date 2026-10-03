@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, GitPullRequestDraft, Languages, LogOut, Network, Plus, Search, Settings, ShieldCheck } from "lucide-react";
+import { FileText, FolderTree, GitPullRequestDraft, Languages, LogOut, Network, Plus, Search, Settings, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -47,6 +47,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const nav = [
     { href: "/", label: t("nav.home"), icon: FileText, show: true },
     { href: "/search", label: t("search.page.title"), icon: Search, show: true },
+    { href: "/vault", label: t("nav.vault"), icon: FolderTree, show: true },
     { href: "/graph", label: t("nav.graph"), icon: Network, show: true },
     { href: "/drafts", label: t("nav.drafts"), icon: GitPullRequestDraft, show: me.spaces.some((s) => s.perms.includes("write")) },
     { href: "/audit", label: t("nav.audit"), icon: ShieldCheck, show: me.spaces.some((s) => s.perms.includes("admin")) },

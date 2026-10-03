@@ -1,10 +1,11 @@
 "use client";
 
-import { CircleDot, Lock, Pencil, Save, Unlock } from "lucide-react";
+import { CircleDot, FolderInput, Lock, Pencil, Save, Trash2, Unlock } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AvatarGroup } from "@/components/arc/avatar-group/avatar-group";
+import { Breadcrumb } from "@/components/arc/breadcrumb/breadcrumb";
 import { AskPanel } from "@/components/AskPanel";
 import { StatusBadge, TypeBadge } from "@/components/badges";
 import { CreateNote } from "@/components/CreateNote";
@@ -15,7 +16,7 @@ import { IssueDialog } from "@/components/IssueDialog";
 import { LinksPanel } from "@/components/LinksPanel";
 import { DecryptDialog, EncryptDialog, LockedNote, PrivateBadge, RecipientsPanel } from "@/components/PrivateNote";
 import { Markdown } from "@/components/Markdown";
-import { Badge, Button, Card, Dialog, DialogContent, ErrorBox, Select, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { Badge, Button, Card, Dialog, DialogContent, ErrorBox, Field, Input, Select, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
 import { useCollab } from "@/hooks/use-collab";
 import { useRefreshAll } from "@/hooks/use-keys";
@@ -84,6 +85,11 @@ function Loaded({ id }: { id: string }) {
   const [encryptOpen, setEncryptOpen] = useState(false);
   const [decryptOpen, setDecryptOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [newPath, setNewPath] = useState(id);
+  const [moving, setMoving] = useState(false);
+  const [moveError, setMoveError] = useState<string>();
   const refreshAll = useRefreshAll();
 
   const n = note.data;
@@ -167,6 +173,39 @@ function Loaded({ id }: { id: string }) {
     }
   };
 
+  const rename = async () => {
+    setMoving(true);
+    setMoveError(undefined);
+    try {
+      const r = await api.post<{ id: string; skipped: string[] }>(`${noteApi(id)}/rename`, { to: newPath.trim().replace(/\.md$/i, "") });
+      toast("ok", t("note.renamed", { id: r.id }));
+      if (r.skipped.length) toast("error", t("note.renameSkipped", { ids: r.skipped.join(", ") }));
+      setRenameOpen(false);
+      await refreshAll();
+      router.push(notePath(r.id));
+    } catch (e) {
+      setMoveError(errorMessage(e));
+    } finally {
+      setMoving(false);
+    }
+  };
+
+  const remove = async () => {
+    setMoving(true);
+    setMoveError(undefined);
+    try {
+      await api.del(`${noteApi(id)}${qs({ base_commit: n?.commit ?? undefined })}`);
+      toast("ok", t("note.deleted"));
+      setDeleteOpen(false);
+      await refreshAll();
+      router.push("/");
+    } catch (e) {
+      setMoveError(errorMessage(e));
+    } finally {
+      setMoving(false);
+    }
+  };
+
   /** Take the saved version over the text in the editor (after a conflict). */
   const loadTheirs = async () => {
     const fresh = await api.get<NoteDetail>(noteApi(id));
@@ -215,11 +254,13 @@ function Loaded({ id }: { id: string }) {
   const tabsToShow = TABS.filter((x) => (x === "edit" ? writable && !n.locked : x === "audit" ? !!audit.data : true));
   const preview = live ? splitFrontmatter(collab.content).body : draft !== undefined ? splitFrontmatter(draft).body : n.body;
   const people = collab?.peers ?? [];
+  const flatIncoming = Object.values(links.data?.incoming ?? {}).flat().length;
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <article className="min-w-0">
-        <header className="mb-4">
+        <Breadcrumb ariaLabel={t("note.breadcrumb")} items={[{ label: t("vault.root"), href: "/vault/" }, ...n.id.split("/").slice(0, -1).map((part, i, all) => ({ label: part, href: `/vault/${qs({ q: `${all.slice(0, i + 1).join("/")}/` })}` })), { label: n.id.split("/").at(-1) ?? n.id }]} />
+        <header className="mb-4 mt-3">
           <div className="flex flex-wrap items-center gap-2">
             <TypeBadge type={n.type} />
             <StatusBadge status={n.status} />
@@ -369,6 +410,18 @@ function Loaded({ id }: { id: string }) {
                 {t("tab.edit")}
               </Button>
             )}
+            {writable && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => { setNewPath(n.id); setMoveError(undefined); setRenameOpen(true); }}>
+                  <FolderInput className="size-4" aria-hidden />
+                  {t("note.rename")}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => { setMoveError(undefined); setDeleteOpen(true); }}>
+                  <Trash2 className="size-4" aria-hidden />
+                  {t("note.delete")}
+                </Button>
+              </>
+            )}
             {writable && !n.private && (
               <Button variant="outline" size="sm" onClick={() => setEncryptOpen(true)}>
                 <Lock className="size-4" aria-hidden />
@@ -427,6 +480,32 @@ function Loaded({ id }: { id: string }) {
         </Card>
       </aside>
 
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent title={t("note.renameTitle")} description={t("note.renameBody")} closeLabel={t("close")}>
+          <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void rename(); }}>
+            <Field label={t("note.newPath")} id="rename-path">
+              <Input id="rename-path" value={newPath} onChange={(e) => setNewPath(e.target.value)} required autoFocus />
+            </Field>
+            {moveError && <ErrorBox>{moveError}</ErrorBox>}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setRenameOpen(false)}>{t("cancel")}</Button>
+              <Button type="submit" disabled={moving || !newPath.trim() || newPath.trim() === id}>{t("note.renameConfirm")}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent title={t("note.deleteTitle")} description={t("note.deleteBody")} closeLabel={t("close")}>
+          <div className="space-y-3">
+            {flatIncoming > 0 && <p className="text-sm">{t("note.deleteLinks", { n: flatIncoming })}</p>}
+            {moveError && <ErrorBox>{moveError}</ErrorBox>}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeleteOpen(false)}>{t("cancel")}</Button>
+              <Button variant="destructive" disabled={moving} onClick={() => void remove()}>{t("note.deleteConfirm")}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       <EncryptDialog id={id} open={encryptOpen} onOpenChange={setEncryptOpen} onDone={() => void refreshAll()} />
       <DecryptDialog id={id} open={decryptOpen} onOpenChange={setDecryptOpen} onDone={() => void refreshAll()} />
       <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
