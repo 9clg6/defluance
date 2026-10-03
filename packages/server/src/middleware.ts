@@ -25,6 +25,12 @@ export function useMiddleware(app: Hono<AppEnv>, ctx: Ctx, metrics: Metrics): vo
   const https = ctx.publicUrl.startsWith("https://");
 
   app.use("*", requestId());
+  // Files from the vault get a stricter policy than pages: an SVG opened on its own must not be able to run script.
+  // Registered before secureHeaders so that this runs after it and has the last word.
+  app.use("/api/v1/files/*", async (c, next) => {
+    await next();
+    c.header("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+  });
   app.use(
     "*",
     secureHeaders({
@@ -45,16 +51,20 @@ export function useMiddleware(app: Hono<AppEnv>, ctx: Ctx, metrics: Metrics): vo
     }),
   );
 
-  // API answers can carry private text: no browser or proxy cache may keep them.
+  // API answers can carry private text: no browser or proxy cache may keep them. (A route that sets its own policy, such as
+  // a file that can be reused for a few minutes, keeps it.)
   app.use("/api/*", async (c, next) => {
     await next();
-    c.header("cache-control", "no-store");
+    if (!c.res.headers.has("cache-control")) c.header("cache-control", "no-store");
   });
 
   // Body size: webhooks may carry up to 25 MB (GitHub's cap), the API a few MB, auth forms almost nothing.
   app.use("/webhooks/*", limit(26 * MB));
   app.use("/mcp", limit(5 * MB));
-  app.use("/api/*", limit(5 * MB));
+  // File uploads may be bigger than other calls; the route checks its own, smaller, limit on the file itself.
+  const apiLimit = limit(5 * MB);
+  const uploadLimit = limit(12 * MB);
+  app.use("/api/*", (c, next) => (c.req.path === "/api/v1/files" && c.req.method === "POST" ? uploadLimit(c, next) : apiLimit(c, next)));
   app.use("/auth/*", limit(64 * KB));
 
   // Time: model calls are slow on purpose, everything else is not.

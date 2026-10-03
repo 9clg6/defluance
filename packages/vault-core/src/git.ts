@@ -255,7 +255,7 @@ export function deleteBranch(repo: string, branch: string): Promise<void> {
 
 export interface Changes {
   /** Files to create or replace. */
-  writes?: { path: string; content: string }[];
+  writes?: { path: string; content: string | Uint8Array }[];
   /** Files to move (history follows with `git mv`). */
   moves?: { from: string; to: string }[];
   /** Files to delete. */
@@ -280,7 +280,7 @@ export function applyAndCommit(repo: string, changes: Changes, opts: { message: 
     for (const r of removes) await g.raw(["rm", "-q", "--", r]);
     for (const w of writes) {
       await mkdir(dirname(join(repo, w.rel)), { recursive: true });
-      await writeFile(join(repo, w.rel), w.content, "utf8");
+      await writeFile(join(repo, w.rel), w.content);
       await g.add(w.rel);
     }
     const paths = [...writes.map((w) => w.rel), ...moves.flatMap((m) => [m.from, m.to]), ...removes];
