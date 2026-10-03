@@ -7,6 +7,7 @@ import { useMiddleware } from "./middleware.js";
 import { authenticate, authRoutes } from "./routes/auth.js";
 import { githubRoutes } from "./routes/github.js";
 import { problem, router } from "./routes/http.js";
+import { keyRoutes } from "./routes/keys.js";
 import { mcpRoute } from "./routes/mcp.js";
 import { noteRoutes } from "./routes/notes.js";
 import { opsRoutes } from "./routes/ops.js";
@@ -42,6 +43,7 @@ export function createApp(ctx: Ctx) {
   app.route("/", authRoutes(ctx));
   app.route("/", mcpRoute(ctx, metrics));
   app.route("/", systemRoutes(ctx));
+  app.route("/", keyRoutes(ctx));
   app.route("/", noteRoutes(ctx));
   app.route("/", searchRoutes(ctx));
   app.route("/", githubRoutes(ctx));

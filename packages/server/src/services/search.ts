@@ -1,4 +1,4 @@
-import { type AskResult, type SmartResult, ask, deepAsk, smartSearch } from "@defluance/ai";
+import { type AskResult, type SmartResult, ask, deepAsk, fuse, smartSearch } from "@defluance/ai";
 import {
   impact as graphImpact,
   lint as graphLint,
@@ -10,12 +10,20 @@ import {
 } from "@defluance/indexer";
 import { type Actor } from "../auth.js";
 import { type Ctx } from "../context.js";
+import { searchPrivate, searchPrivateSources } from "../private-index.js";
+import { privateNotes } from "./private.js";
 import { readSpaces, requireNote, safeId } from "./shared.js";
 
 export async function searchNotes(ctx: Ctx, actor: Actor, q: string, f: NoteFilter & { limit?: number | undefined; mode?: SearchMode | undefined; passages?: number | undefined }) {
   const readable = await readSpaces(ctx, actor);
   const spaces = f.space ? (readable && !readable.includes(f.space) ? [] : undefined) : readable;
-  return indexSearch(ctx.store, q, { ...f, spaces, embedder: ctx.embedder, limit: Math.min(f.limit ?? 20, 50) });
+  const limit = Math.min(f.limit ?? 20, 50);
+  const hits = await indexSearch(ctx.store, q, { ...f, spaces, embedder: ctx.embedder, limit });
+  // Private notes the actor has unlocked are found by words and merged in; "meaning" search never sees them.
+  if (f.mode === "meaning") return hits;
+  const open = await privateNotes(ctx, actor);
+  if (!open.length) return hits;
+  return fuse([hits, searchPrivate(open, q, { ...f, spaces }, { limit, ...(f.passages ? { passages: f.passages } : {}) })]).slice(0, limit);
 }
 
 /** Search with the language model in front: reformulations, inferred filters, optional reranking. Plain hybrid without a model. */
@@ -23,7 +31,7 @@ export async function smartSearchNotes(ctx: Ctx, actor: Actor, q: string, f: Not
   const readable = await readSpaces(ctx, actor);
   const spaces = f.space ? (readable && !readable.includes(f.space) ? [] : undefined) : readable;
   const schema = await ctx.getSchema();
-  return smartSearch(ctx.store, q, {
+  const result = await smartSearch(ctx.store, q, {
     ...f,
     spaces,
     embedder: ctx.embedder,
@@ -31,6 +39,15 @@ export async function smartSearchNotes(ctx: Ctx, actor: Actor, q: string, f: Not
     limit: Math.min(f.limit ?? 10, 30),
     vocabulary: { types: Object.keys(schema.types).filter((t) => t !== "issue" && t !== "pull-request"), statuses: schema.statuses },
   });
+  // Private notes are searched with the same reformulations, after the model is done: it never sees their text,
+  // not even to rerank.
+  const open = await privateNotes(ctx, actor);
+  if (!open.length) return result;
+  const limit = Math.min(f.limit ?? 10, 30);
+  const mine = result.understood.queries.map((query) => searchPrivate(open, query, { ...f, spaces }, { limit, ...(f.passages ? { passages: f.passages } : {}) }));
+  const found = fuse(mine);
+  const hits = result.understood.reranked ? [...result.hits, ...found.filter((h) => !result.hits.some((x) => x.note.id === h.note.id))] : fuse([result.hits, found]);
+  return { ...result, hits: hits.slice(0, limit) };
 }
 
 export async function askQuestion(ctx: Ctx, actor: Actor, question: string, f: NoteFilter & { scopeNote?: string | undefined; scopeDepth?: number | undefined; deep?: boolean | undefined; maxSteps?: number | undefined } = {}): Promise<AskResult> {
@@ -40,7 +57,16 @@ export async function askQuestion(ctx: Ctx, actor: Actor, question: string, f: N
   // "Ask about this note": retrieval is limited to the note and the notes within `scopeDepth` links of it.
   const ids = scopeNote ? (await graphNeighborsOf(ctx, actor, scopeNote, { depth: scopeDepth ?? 1 })).nodes.map((n) => n.id) : undefined;
   const opts = { ...filter, spaces, ids, embedder: ctx.embedder, llm: ctx.llm };
-  return deep ? deepAsk(ctx.store, question, { ...opts, ...(maxSteps ? { maxSteps } : {}) }) : ask(ctx.store, question, opts);
+  // Deep search lets a model call tools: private notes stay out of it. A plain question may use them, but unless the
+  // operator allowed it (DFL_PRIVATE_LLM=allow) the answer is then extractive: the text of a private note never goes
+  // to a model provider.
+  if (deep) return deepAsk(ctx.store, question, { ...opts, ...(maxSteps ? { maxSteps } : {}) });
+  const open = await privateNotes(ctx, actor);
+  const extra = open.length ? searchPrivateSources(open, question, { ...filter, spaces, ids }, { limit: 3 }) : [];
+  if (!extra.length) return ask(ctx.store, question, opts);
+  const withheld = !!ctx.llm && !ctx.privateLlm;
+  const r = await ask(ctx.store, question, { ...opts, llm: withheld ? null : ctx.llm, extra });
+  return { ...r, ...(withheld ? { llmWithheld: true } : {}) } as AskResult;
 }
 
 export async function vaultSchema(ctx: Ctx) {

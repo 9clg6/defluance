@@ -3,7 +3,7 @@ import { type Actor, actorFromToken, can } from "../auth.js";
 import { type Ctx, indexNow } from "../context.js";
 import { HttpError, forbidden, notFound } from "../errors.js";
 import { type AuditFilter, PERMS, type Perm, ROLES, type Role } from "../system.js";
-import { audit, readSpaces, spaceNames } from "./shared.js";
+import { audit, authorOf, readSpaces, spaceNames } from "./shared.js";
 
 // ---------------------------------------------------------------- admin
 
@@ -45,14 +45,21 @@ export async function checkTokenSpaces(ctx: Ctx, actor: Actor, spaces: string[])
   }
 }
 
-export async function createToken(ctx: Ctx, actor: Actor, input: { name: string; scopes: Perm[]; spaces: string[]; expiresInDays?: number | undefined }) {
+export async function createToken(ctx: Ctx, actor: Actor, input: { name: string; scopes: Perm[]; spaces: string[]; expiresInDays?: number | undefined; privateKey?: boolean | undefined }) {
   await checkTokenSpaces(ctx, actor, input.spaces);
   const targets = input.spaces.length ? input.spaces : ["*"];
   for (const sc of input.scopes) for (const s of targets) if (!can(actor, sc, s)) throw forbidden(`you cannot grant "${sc}" on "${s}"`);
   if (!input.scopes.every((s) => PERMS.includes(s)) || input.scopes.length === 0) throw new HttpError(422, "scopes must be a non-empty subset of read, write, issues, admin");
   const { token, row } = await ctx.sys.createToken({ name: input.name, scopes: input.scopes, spaces: input.spaces, createdBy: actor.name, ...(input.expiresInDays ? { expiresInDays: input.expiresInDays } : {}) });
   await audit(ctx, actor, "token.create", row.id, { name: row.name, scopes: row.scopes, spaces: row.spaces });
-  return { token, ...row };
+  // A key the token itself protects: the agent that holds the token can read the private notes shared with it.
+  let key: { fp: string; label: string } | undefined;
+  if (input.privateKey) {
+    const k = await ctx.keys.create({ kind: "token", id: row.id }, { label: row.name, passphrase: token, bound: "token", author: authorOf(actor) });
+    key = { fp: k.fp, label: k.label };
+    await audit(ctx, actor, "key.create", k.fp, { owner: `token:${row.id}`, label: k.label });
+  }
+  return { token, ...row, ...(key ? { key } : {}) };
 }
 
 export async function listTokens(ctx: Ctx, actor: Actor) {
@@ -65,6 +72,8 @@ export async function revokeToken(ctx: Ctx, actor: Actor, id: string) {
   if (!t || t.revoked_at) throw notFound("token");
   await checkTokenSpaces(ctx, actor, t.spaces);
   await ctx.sys.revokeToken(id);
+  ctx.keys.forget(id);
+  for (const k of await ctx.sys.keysOf(id)) ctx.priv.drop(k.fp);
   await audit(ctx, actor, "token.revoke", id, { name: t.name });
 }
 

@@ -14,7 +14,7 @@ export function noteRoutes(ctx: Ctx) {
   r.openapi(createRoute({
     method: "post", path: "/api/v1/notes", summary: "Create a note", tags: ["notes"],
     description: "Send either `content` (full markdown with frontmatter) and `id`, or `type` and `title` to build from the vault template. Returns the commit SHA. Agent tokens write to a branch.",
-    request: { body: jsonBody(z.object({ id: z.string().optional(), content: z.string().optional(), type: z.string().optional(), title: z.string().optional(), body: z.string().optional(), frontmatter: z.record(z.string(), z.string()).optional(), message: z.string().optional(), mode })) },
+    request: { body: jsonBody(z.object({ id: z.string().optional(), content: z.string().optional(), type: z.string().optional(), title: z.string().optional(), body: z.string().optional(), frontmatter: z.record(z.string(), z.string()).optional(), message: z.string().optional(), mode, private: z.boolean().optional().openapi({ description: "encrypt the note, for your own keys" }), recipients: z.array(z.string()).optional().openapi({ description: "extra recipients: key fingerprints from GET /keys. Implies private." }) })) },
     responses: { 201: ok("Created"), ...errs },
   }), async (c) => c.json(await svc.createNote(ctx, actorOf(c), c.req.valid("json")), 201));
 
@@ -35,6 +35,21 @@ export function noteRoutes(ctx: Ctx) {
   r.openapi(createRoute({ method: "patch", path: "/api/v1/notes/{id}/status", summary: "Change a note's status", tags: ["notes"], request: { params: idParam, body: jsonBody(z.object({ status: z.string(), mode })) }, responses: { 200: ok("Committed"), ...errs } }), async (c) =>
     c.json(await svc.setStatus(ctx, actorOf(c), c.req.valid("param").id, c.req.valid("json").status, { mode: c.req.valid("json").mode }), 200),
   );
+
+  r.openapi(createRoute({
+    method: "post", path: "/api/v1/notes/{id}/encrypt", summary: "Encrypt a note", tags: ["private notes"],
+    description: "Encrypts the note for your keys and any `recipients`. Earlier versions stay readable in git history: the answer carries a warning.",
+    request: { params: idParam, body: jsonBody(z.object({ recipients: z.array(z.string()).optional() })) }, responses: { 200: ok("Committed"), ...errs },
+  }), async (c) => c.json(await svc.encryptExisting(ctx, actorOf(c), c.req.valid("param").id, c.req.valid("json")), 200));
+  r.openapi(createRoute({
+    method: "post", path: "/api/v1/notes/{id}/decrypt", summary: "Make a private note plain again", tags: ["private notes"],
+    description: "Needs an unlocked key that is a recipient.", request: { params: idParam }, responses: { 200: ok("Committed"), ...errs },
+  }), async (c) => c.json(await svc.decryptExisting(ctx, actorOf(c), c.req.valid("param").id), 200));
+  r.openapi(createRoute({
+    method: "put", path: "/api/v1/notes/{id}/recipients", summary: "Change who can read a private note", tags: ["private notes"],
+    description: "Adding wraps the note key for the new person. Removing encrypts the note again under a new key; a copy they already hold stays readable.",
+    request: { params: idParam, body: jsonBody(z.object({ add: z.array(z.string()).optional(), remove: z.array(z.string()).optional() })) }, responses: { 200: ok("Recipients"), ...errs },
+  }), async (c) => c.json(await svc.setRecipients(ctx, actorOf(c), c.req.valid("param").id, c.req.valid("json")), 200));
 
   r.openapi(createRoute({ method: "get", path: "/api/v1/notes/{id}/links", summary: "Outgoing and incoming links, grouped by type", tags: ["notes"], request: { params: idParam }, responses: { 200: ok("Links"), ...errs } }), async (c) =>
     c.json(await svc.noteLinks(ctx, actorOf(c), c.req.valid("param").id), 200),

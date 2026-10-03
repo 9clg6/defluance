@@ -14,6 +14,9 @@ const schema = z.object({
   DFL_ADMINS: csv,
   DFL_ALLOWED_ORIGINS: csv,
   DFL_RATE_LIMIT: z.coerce.number().int().min(0).max(100_000).default(300),
+  DFL_RSA_BITS: z.coerce.number().int().refine((n) => [2048, 3072, 4096].includes(n), "must be 2048, 3072 or 4096").default(4096),
+  /** `allow` lets an answer to a question about private notes be written by the language model, so private text reaches that provider. */
+  DFL_PRIVATE_LLM: z.enum(["allow", "deny"]).default("deny"),
   GITHUB_OAUTH_CLIENT_ID: z.string().min(1).optional(),
   GITHUB_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
 });

@@ -64,7 +64,8 @@ export function buildMcpServer(ctx: Ctx, actor: Actor, onCall?: (tool: string, o
     title: z.string().min(1), type: z.string().describe("functional-spec, technical-spec, adr, note, glossary or component"),
     body: z.string().optional().describe("markdown body without the title"), id: z.string().optional().describe("path without .md, defaults to the slugified title"),
     frontmatter: z.record(z.string(), z.string()).optional(),
-  }, (a) => svc.createNote(ctx, actor, { title: a.title, type: a.type, body: a.body, id: a.id, frontmatter: a.frontmatter }));
+    private: z.boolean().optional().describe("encrypt the note for your key (your token must have been created with a key)"),
+  }, (a) => svc.createNote(ctx, actor, { title: a.title, type: a.type, body: a.body, id: a.id, frontmatter: a.frontmatter, private: a.private }));
   tool("update_note", "Replace a note with new full markdown (frontmatter included). Pass base_commit from read_note to avoid overwriting concurrent edits.", {
     id: z.string(), content: z.string(), base_commit: z.string().optional(), message: z.string().optional(),
   }, (a) => svc.updateNote(ctx, actor, a.id, { content: a.content, baseCommit: a.base_commit, message: a.message }));

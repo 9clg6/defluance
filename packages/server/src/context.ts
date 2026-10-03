@@ -30,6 +30,8 @@ import {
 } from "@defluance/vault-core";
 import type { GithubPort } from "./ports.js";
 import { RateLimiter } from "./auth.js";
+import { KeyService, type KeyOptions } from "./keys.js";
+import { PrivateIndex } from "./private-index.js";
 import { SystemStore, type Role } from "./system.js";
 
 export type Env = Record<string, string | undefined>;
@@ -51,6 +53,12 @@ export interface Ctx {
   db: Db;
   store: IndexStore;
   sys: SystemStore;
+  /** Keys of people and agents, and which are unlocked right now. */
+  keys: KeyService;
+  /** Decrypted notes of the unlocked keys. Memory only. */
+  priv: PrivateIndex;
+  /** Whether a language model may see private text when answering a question. Off unless DFL_PRIVATE_LLM=allow. */
+  privateLlm: boolean;
   jobs: JobQueue;
   embedder: Embedder;
   llm: Llm | null;
@@ -90,6 +98,7 @@ export interface ContextOptions {
   /** Defaults to JSON lines on stdout. */
   log?: ((entry: Record<string, unknown>) => void) | false;
   now?: () => Date;
+  keys?: KeyOptions;
 }
 
 /** Re-read a small file only when its mtime changes. */
@@ -131,6 +140,12 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
   const now = opts.now ?? (() => new Date());
   const sys = await SystemStore.open(db, now);
   const jobs = new JobQueue(db, now);
+  const keyOptions = { bits: cfg.DFL_RSA_BITS, ...(opts.keys ?? {}) };
+  const keys = new KeyService(sys, root, now, keyOptions);
+  const priv = new PrivateIndex(store, root, async () => (await getSchema()).linkTypes);
+  // Decrypted notes are dropped soon after their key stops being used, even if nobody locks it.
+  const sweeper = setInterval(() => priv.sweep(keyOptions.idleMs ?? 30 * 60_000), 60_000);
+  sweeper.unref();
 
   const secretFile = join(dataDir, "session-secret");
   let sessionSecret = cfg.DFL_SESSION_SECRET;
@@ -147,6 +162,8 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
   const publicUrl = cfg.DFL_PUBLIC_URL.replace(/\/$/, "");
   const defaultRole = cfg.DFL_DEFAULT_ROLE ?? null;
 
+  const getSchema = cached(join(root, SCHEMA_PATH), () => loadSchema(root), () => structuredClone(defaultSchemaFallback));
+
   return {
     root,
     embedding: { running: false, done: 0, total: 0, error: null },
@@ -154,12 +171,15 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
     db,
     store,
     sys,
+    keys,
+    priv,
+    privateLlm: cfg.DFL_PRIVATE_LLM === "allow",
     jobs,
     embedder: opts.embedder ?? createEmbedder(env["DFL_EMBED"], { env }),
     llm: opts.llm !== undefined ? opts.llm : createLlm(env["DFL_LLM"], { env }),
     github: opts.github ?? null,
     getConfig: cached(join(root, CONFIG_PATH), () => loadConfig(root), () => structuredClone(defaultConfig)),
-    getSchema: cached(join(root, SCHEMA_PATH), () => loadSchema(root), () => structuredClone(defaultSchemaFallback)),
+    getSchema,
     bot: { name: "defluance-bot", email: "bot@defluance.local" },
     sessionSecret,
     admins: cfg.DFL_ADMINS,
@@ -173,7 +193,11 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
     fetch: opts.fetch ?? fetch,
     log: opts.log === false ? () => undefined : (opts.log ?? ((e) => console.log(JSON.stringify({ t: new Date().toISOString(), ...e })))),
     now,
-    close: () => db.close(),
+    close: async () => {
+      clearInterval(sweeper);
+      priv.dropAll();
+      await db.close();
+    },
   };
 }
 

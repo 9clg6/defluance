@@ -35,7 +35,30 @@ CREATE INDEX audit_at ON audit_log(at);
 CREATE INDEX audit_target ON audit_log(target);
 `,
   },
+  {
+    id: "system-002",
+    up: () => `
+CREATE TABLE keys (
+  fp TEXT PRIMARY KEY, owner_kind TEXT NOT NULL, owner_id TEXT NOT NULL, label TEXT NOT NULL,
+  public_pem TEXT NOT NULL, protected TEXT NOT NULL, bound TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE INDEX keys_owner ON keys(owner_id);
+`,
+  },
 ];
+
+export interface KeyRow {
+  fp: string;
+  owner_kind: "user" | "token";
+  owner_id: string;
+  label: string;
+  public_pem: string;
+  /** Passphrase-protected private key (JSON). Never leaves the server except as the owner's own backup. */
+  protected: string;
+  /** `passphrase`: the owner types it. `token`: the API token itself is the passphrase (agents). */
+  bound: "passphrase" | "token";
+  created_at: string;
+}
 
 export interface TokenRow {
   id: string;
@@ -165,6 +188,30 @@ export class SystemStore {
 
   async tokenCount(): Promise<number> {
     return Number((await this.db.get<{ c: number | string }>("SELECT COUNT(*) AS c FROM tokens WHERE revoked_at IS NULL"))?.c ?? 0);
+  }
+
+  // ---- keys (the private half stays protected by a passphrase; see keys.ts)
+
+  async addKey(k: Omit<KeyRow, "created_at">): Promise<KeyRow> {
+    const at = this.now().toISOString();
+    await this.db.run(`INSERT INTO keys (fp, owner_kind, owner_id, label, public_pem, protected, bound, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [k.fp, k.owner_kind, k.owner_id, k.label, k.public_pem, k.protected, k.bound, at]);
+    return { ...k, created_at: at };
+  }
+
+  async getKey(fp: string): Promise<KeyRow | null> {
+    return ((await this.db.get("SELECT * FROM keys WHERE fp = ?", [fp])) as KeyRow | undefined) ?? null;
+  }
+
+  async keysOf(ownerId: string): Promise<KeyRow[]> {
+    return (await this.db.all("SELECT * FROM keys WHERE owner_id = ? ORDER BY created_at", [ownerId])) as unknown as KeyRow[];
+  }
+
+  async allKeys(): Promise<KeyRow[]> {
+    return (await this.db.all("SELECT * FROM keys ORDER BY created_at")) as unknown as KeyRow[];
+  }
+
+  async deleteKey(fp: string): Promise<void> {
+    await this.db.run("DELETE FROM keys WHERE fp = ?", [fp]);
   }
 
   // ---- users and memberships

@@ -1,9 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { ConflictError, type Diagnostic, addFrontmatterLink, bodyOf, parseNote, pushToOrigin, readAt, renderTemplate, reposOf, setFrontmatterField, slugify, spaceOf, validateFields, writeAndCommit } from "@defluance/vault-core";
+import { ConflictError, type Diagnostic, type Recipient, addFrontmatterLink, addRecipient, bodyOf, encryptNote, parseNote, pushToOrigin, readAt, removeRecipient, renderTemplate, reposOf, setFrontmatterField, slugify, spaceOf, validateFields, writeAndCommit } from "@defluance/vault-core";
+import { type NoteRow } from "@defluance/indexer";
 import { type Actor, can } from "../auth.js";
 import { type Ctx, indexAfterWrite } from "../context.js";
 import { HttpError, forbidden, notFound } from "../errors.js";
+import { defaultRecipients, isPrivateRow, openPrivate, readPrivate, recipientsFor, recipientsOfRow } from "./private.js";
 import { audit, authorOf, requireNote, safeId } from "./shared.js";
 
 // ---------------------------------------------------------------- writing
@@ -52,7 +54,7 @@ export interface WriteResult {
 export async function commit(
   ctx: Ctx,
   actor: Actor,
-  p: { id: string; content: string; message: string; action: string; create: boolean; baseCommit?: string | undefined; mode?: Mode | undefined; extra?: Record<string, unknown> },
+  p: { id: string; content: string; message: string; action: string; create: boolean; baseCommit?: string | undefined; mode?: Mode | undefined; extra?: Record<string, unknown>; encryptFor?: Recipient[] | undefined },
 ): Promise<WriteResult> {
   const id = safeId(p.id);
   const path = `${id}.md`;
@@ -71,10 +73,23 @@ export async function commit(
   if (p.create && actor.agent && note.frontmatter["status"] !== "draft") throw forbidden("agents can only create drafts");
   if (!p.create) checkStatusRule(actor, existing?.status ?? null, note.frontmatter["status"]);
 
+  // The text was validated as written; what reaches the disk is the encrypted file when the note is private.
+  const file = p.encryptFor ? encryptNote(p.content, p.encryptFor) : p.content;
+  return persist(ctx, actor, { id, path, file, message: p.message, action: p.action, baseCommit: p.baseCommit, mode: p.mode, ...(p.extra ? { extra: p.extra } : {}), diagnostics: fields });
+}
+
+/** Write a file, index it, push it and audit it. The caller has already checked rights and, for plain notes, the schema. */
+async function persist(
+  ctx: Ctx,
+  actor: Actor,
+  p: { id: string; path: string; file: string; message: string; action: string; baseCommit?: string | undefined; mode?: Mode | undefined; extra?: Record<string, unknown>; diagnostics: Diagnostic[] },
+): Promise<WriteResult> {
+  const { id, path } = p;
+  const config = await ctx.getConfig();
   const mode = await writeMode(ctx, actor, p.mode);
   const branch = mode === "branch" ? branchFor(actor, id) : null;
   try {
-    const r = await writeAndCommit(ctx.root, path, p.content, {
+    const r = await writeAndCommit(ctx.root, path, p.file, {
       message: p.message,
       author: authorOf(actor),
       ...(p.baseCommit ? { baseCommit: p.baseCommit } : {}),
@@ -83,7 +98,7 @@ export async function commit(
     if (!branch) await indexAfterWrite(ctx, [path]);
     if (config.vaultPush) await pushToOrigin(ctx.root, branch ?? "HEAD").catch((e: unknown) => ctx.log({ msg: "push failed", error: String(e) }));
     await audit(ctx, actor, p.action, id, { branch, message: p.message, ...p.extra }, r.commit);
-    return { id, commit: r.commit, branch, diagnostics: fields };
+    return { id, commit: r.commit, branch, diagnostics: p.diagnostics };
   } catch (e) {
     if (e instanceof ConflictError) throw new HttpError(409, "note changed since you loaded it", { current: e.actual, expected: e.expected });
     throw e;
@@ -101,6 +116,10 @@ export interface CreateInput {
   frontmatter?: Record<string, string> | undefined;
   message?: string | undefined;
   mode?: Mode | undefined;
+  /** Encrypt the note. By default for the author's own keys. */
+  private?: boolean | undefined;
+  /** Extra recipients, as fingerprints from the vault keyring. Implies `private`. */
+  recipients?: string[] | undefined;
 }
 
 export async function createNote(ctx: Ctx, actor: Actor, input: CreateInput): Promise<WriteResult> {
@@ -122,12 +141,19 @@ export async function createNote(ctx: Ctx, actor: Actor, input: CreateInput): Pr
     content = text;
   }
   if (!id) throw new HttpError(422, "`id` is required with `content`");
-  return commit(ctx, actor, { id, content, message: input.message ?? `add ${id}`, action: "note.create", create: true, mode: input.mode });
+  const encryptFor = input.private || input.recipients?.length ? await defaultRecipients(ctx, actor, input.recipients) : undefined;
+  return commit(ctx, actor, { id, content, message: input.message ?? `add ${id}`, action: "note.create", create: true, mode: input.mode, encryptFor, ...(encryptFor ? { extra: { private: true } } : {}) });
 }
 
 export async function updateNote(ctx: Ctx, actor: Actor, id: string, input: { content: string; baseCommit?: string | undefined; message?: string | undefined; mode?: Mode | undefined }): Promise<WriteResult> {
   const note = await requireNote(ctx, actor, id, "write");
-  return commit(ctx, actor, { id: note.id, content: input.content, message: input.message ?? `update ${note.id}`, action: "note.update", create: false, baseCommit: input.baseCommit, mode: input.mode });
+  // Saving a private note re-encrypts it for the same people. Only someone who can read it may do so.
+  let encryptFor: Recipient[] | undefined;
+  if (isPrivateRow(note)) {
+    await readPrivate(ctx, actor, note);
+    encryptFor = await recipientsFor(ctx, recipientsOfRow(note));
+  }
+  return commit(ctx, actor, { id: note.id, content: input.content, message: input.message ?? `update ${note.id}`, action: "note.update", create: false, baseCommit: input.baseCommit, mode: input.mode, encryptFor });
 }
 
 export async function setStatus(ctx: Ctx, actor: Actor, id: string, status: string, opts: { mode?: Mode | undefined; message?: string | undefined } = {}): Promise<WriteResult> {
@@ -136,14 +162,15 @@ export async function setStatus(ctx: Ctx, actor: Actor, id: string, status: stri
   if (!schema.statuses.includes(status)) throw new HttpError(422, `invalid status "${status}" (allowed: ${schema.statuses.join(", ")})`);
   checkStatusRule(actor, note.status, status);
   const mode = await writeMode(ctx, actor, opts.mode);
-  const raw = await currentRaw(ctx, note.path, mode === "branch" ? branchFor(actor, note.id) : null);
+  const stored = await currentRaw(ctx, note.path, mode === "branch" ? branchFor(actor, note.id) : null);
+  const { raw, encryptFor } = await plainOf(ctx, actor, note, stored);
   let content: string;
   try {
     content = setFrontmatterField(raw, "status", status);
   } catch (e) {
     throw new HttpError(422, (e as Error).message);
   }
-  return commit(ctx, actor, { id: note.id, content, message: opts.message ?? `status ${note.id}: ${status}`, action: "note.status", create: false, mode: opts.mode, extra: { from: note.status, to: status } });
+  return commit(ctx, actor, { id: note.id, content, message: opts.message ?? `status ${note.id}: ${status}`, action: "note.status", create: false, mode: opts.mode, extra: { from: note.status, to: status }, encryptFor });
 }
 
 export async function addLink(ctx: Ctx, actor: Actor, id: string, input: { to: string; type: string; mode?: Mode | undefined }): Promise<WriteResult> {
@@ -155,7 +182,8 @@ export async function addLink(ctx: Ctx, actor: Actor, id: string, input: { to: s
     if (!target || !can(actor, "read", target.space)) throw new HttpError(422, `target "${input.to}" not found`);
   }
   const mode = await writeMode(ctx, actor, input.mode);
-  const raw = await currentRaw(ctx, note.path, mode === "branch" ? branchFor(actor, note.id) : null);
+  const stored = await currentRaw(ctx, note.path, mode === "branch" ? branchFor(actor, note.id) : null);
+  const { raw, encryptFor } = await plainOf(ctx, actor, note, stored);
   let content: string;
   try {
     content = addFrontmatterLink(raw, input.to, input.type);
@@ -163,12 +191,68 @@ export async function addLink(ctx: Ctx, actor: Actor, id: string, input: { to: s
     throw new HttpError(422, (e as Error).message);
   }
   if (content === raw) throw new HttpError(409, "link already present");
-  return commit(ctx, actor, { id: note.id, content, message: `link ${note.id} ${input.type} ${input.to}`, action: "note.link", create: false, mode: input.mode, extra: { to: input.to, type: input.type } });
+  // A private note's link target is not written to the audit log: that would say what the note is about.
+  return commit(ctx, actor, { id: note.id, content, message: `link ${note.id} ${input.type}${encryptFor ? "" : ` ${input.to}`}`, action: "note.link", create: false, mode: input.mode, extra: encryptFor ? { type: input.type } : { to: input.to, type: input.type }, encryptFor });
+}
+
+/** The text to edit, and for whom to encrypt it again. A plain note is returned as it is. */
+async function plainOf(ctx: Ctx, actor: Actor, note: NoteRow, stored: string): Promise<{ raw: string; encryptFor: Recipient[] | undefined }> {
+  if (!isPrivateRow(note)) return { raw: stored, encryptFor: undefined };
+  const opened = await openPrivate(ctx, actor, stored);
+  return { raw: opened.plain, encryptFor: await recipientsFor(ctx, opened.recipients) };
+}
+
+/** Encrypt a note that is plain today. Earlier versions stay readable in git history: the answer says so. */
+export async function encryptExisting(ctx: Ctx, actor: Actor, id: string, input: { recipients?: string[] | undefined } = {}) {
+  const note = await requireNote(ctx, actor, id, "write");
+  if (isPrivateRow(note)) throw new HttpError(409, "the note is already private");
+  const raw = await currentRaw(ctx, note.path, null);
+  const encryptFor = await defaultRecipients(ctx, actor, input.recipients);
+  const r = await commit(ctx, actor, { id: note.id, content: raw, message: `encrypt ${note.id}`, action: "note.encrypt", create: false, mode: "direct", encryptFor, extra: { recipients: encryptFor.map((x) => x.fp) } });
+  return { ...r, warning: "Earlier versions of this note stay readable in the git history. Rewrite the history, or treat their content as already shared." };
+}
+
+/** Make a private note plain again. Needs an unlocked key that is a recipient. */
+export async function decryptExisting(ctx: Ctx, actor: Actor, id: string) {
+  const note = await requireNote(ctx, actor, id, "write");
+  if (!isPrivateRow(note)) throw new HttpError(409, "the note is not private");
+  const { plain } = await readPrivate(ctx, actor, note);
+  return commit(ctx, actor, { id: note.id, content: plain, message: `decrypt ${note.id}`, action: "note.decrypt", create: false, mode: "direct" });
+}
+
+/**
+ * Change who can read a private note. Adding someone only wraps the note key for them. Removing someone encrypts the note
+ * again under a new key for the others, but a copy they already have (git history, a backup) stays readable.
+ */
+export async function setRecipients(ctx: Ctx, actor: Actor, id: string, input: { add?: string[] | undefined; remove?: string[] | undefined }) {
+  const note = await requireNote(ctx, actor, id, "write");
+  if (!isPrivateRow(note)) throw new HttpError(409, "the note is not private");
+  const { raw, held, recipients } = await readPrivate(ctx, actor, note);
+  let file = raw;
+  let current = recipients;
+  for (const add of await recipientsFor(ctx, (input.add ?? []).filter((fp) => !current.includes(fp)))) {
+    file = addRecipient(file, held.key, held.fp, add);
+    current = [...current, add.fp];
+  }
+  const drop = (input.remove ?? []).filter((fp) => current.includes(fp));
+  if (drop.length) {
+    const keep = current.filter((fp) => !drop.includes(fp));
+    if (!keep.length) throw new HttpError(422, "a private note must keep at least one recipient");
+    if (!keep.includes(held.fp)) throw new HttpError(422, "you cannot remove the key you are using: you would lose access to the note");
+    const resolved = await recipientsFor(ctx, keep);
+    for (const fp of drop) file = removeRecipient(file, held.key, held.fp, fp, resolved);
+    current = keep;
+  }
+  if (file === raw) return { id: note.id, commit: null, branch: null, recipients: current, diagnostics: [] };
+  const r = await persist(ctx, actor, { id: note.id, path: note.path, file, message: `recipients ${note.id}`, action: "note.recipients", mode: "direct", extra: { add: input.add ?? [], remove: drop }, diagnostics: [] });
+  return { ...r, recipients: current };
 }
 
 export async function createIssueFromNote(ctx: Ctx, actor: Actor, id: string, input: { repo?: string | undefined; title?: string | undefined; body?: string | undefined; labels?: string[] | undefined }) {
   const note = await requireNote(ctx, actor, id);
   if (!can(actor, "issues", note.space)) throw forbidden(`requires "issues" on space "${note.space}"`);
+  // The issue would copy the text and title of the note to GitHub.
+  if (isPrivateRow(note)) throw new HttpError(422, "a private note cannot be sent to GitHub");
   if (!ctx.github) throw new HttpError(503, "GitHub is not configured");
   const config = await ctx.getConfig();
   const allowed = reposOf(config, note.space);

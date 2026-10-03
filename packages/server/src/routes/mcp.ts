@@ -13,6 +13,7 @@ export function mcpRoute(ctx: Ctx, metrics: Metrics) {
     const m = header ? /^Bearer\s+(.+)$/i.exec(header) : null;
     const token = m?.[1] ? await ctx.sys.findToken(m[1].trim()) : null;
     if (!token) return c.body(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "authentication required" }, id: null }), 401, { "content-type": "application/json", "www-authenticate": "Bearer" });
+    await ctx.keys.unlockWithToken(token.id, m?.[1]?.trim() ?? "");
     const actor = actorFromToken(token, "bearer");
     const wait = ctx.rateLimiter.take(actor.id);
     if (wait) return c.body(JSON.stringify({ jsonrpc: "2.0", error: { code: -32002, message: "too many requests" }, id: null }), 429, { "content-type": "application/json", "retry-after": String(wait) });

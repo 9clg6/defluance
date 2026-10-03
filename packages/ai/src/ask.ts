@@ -29,6 +29,8 @@ export interface AskOptions extends NoteFilter {
   k?: number;
   /** Extractive mode only: minimum cosine for a vector-only match to count as a source. */
   minVector?: number;
+  /** Passages found outside the index (the decrypted notes of an unlocked key), merged with the retrieved ones. */
+  extra?: { hit: SearchHit; content: string }[];
 }
 
 export const NO_SOURCE = "No source found for this question.";
@@ -81,7 +83,16 @@ export async function ask(store: IndexStore, question: string, opts: AskOptions 
     const min = opts.minVector ?? 0.25;
     hits = hits.filter((h) => h.sources.includes("fts") || (h.vector ?? 0) >= min);
   }
-  const sources = await loadSources(store, hits);
+  let sources = await loadSources(store, hits);
+  if (opts.extra?.length) {
+    // one from each side in turn, so neither crowds out the other
+    const merged: Source[] = [];
+    for (let i = 0; i < Math.max(sources.length, opts.extra.length); i++) {
+      if (sources[i]) merged.push(sources[i] as Source);
+      if (opts.extra[i]) merged.push(opts.extra[i] as Source);
+    }
+    sources = merged.slice(0, opts.k ?? 6);
+  }
   if (!sources.length) return refusal(mode);
 
   if (!opts.llm) {

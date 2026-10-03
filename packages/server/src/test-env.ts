@@ -29,6 +29,8 @@ export interface TestServer {
   call(method: string, path: string, o?: { token?: string | null; body?: unknown; headers?: Record<string, string> }): Promise<{ status: number; body: any; res: Response }>;
   request: (input: string, init?: RequestInit) => Response | Promise<Response>;
   git(...args: string[]): string;
+  /** Every log line the server wrote, as JSON strings. */
+  logs: string[];
   flush(): Promise<void>;
   cleanup(): Promise<void>;
 }
@@ -44,13 +46,15 @@ export async function makeServer(o: { files?: Record<string, string>; github?: G
   git("add", "-A");
   git("commit", "-q", "-m", "init");
 
+  const logs: string[] = [];
   const ctx = await createContext({
     root,
     env: { DFL_SESSION_SECRET: "test-secret-test-secret", DFL_PUBLIC_URL: "http://localhost:4000", ...(o.env ?? {}) },
     embedder: o.embedder ?? hashEmbedder(),
     llm: o.llm ?? null,
     github: typeof o.github === "function" ? null : (o.github ?? null),
-    log: false,
+    log: (e) => void logs.push(JSON.stringify(e)),
+    keys: { bits: 2048, kdfN: 2 ** 14 },
     ...(o.fetch ? { fetch: o.fetch } : {}),
     ...(o.uiDir ? { uiDir: o.uiDir } : {}),
   });
@@ -83,6 +87,7 @@ export async function makeServer(o: { files?: Record<string, string>; github?: G
     call,
     request: (input, init) => app.request(input, init),
     git,
+    logs,
     flush: async () => void (await ctx.jobs.runDue(jobHandlers(ctx))),
     cleanup: async () => {
       ctx.jobs.stop();

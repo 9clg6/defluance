@@ -36,11 +36,11 @@ export function systemRoutes(ctx: Ctx) {
   r.openapi(createRoute({
     method: "post", path: "/api/v1/tokens", summary: "Create an API token", tags: ["tokens"],
     description: "The token value is returned once. `spaces: []` means every space. You can only grant what you hold yourself.",
-    request: { body: jsonBody(z.object({ name: z.string().min(1).max(80), scopes: z.array(z.enum(PERMS)).min(1), spaces: z.array(z.string()).default([]), expires_in_days: z.number().int().min(1).max(3650).optional() })) },
+    request: { body: jsonBody(z.object({ name: z.string().min(1).max(80), scopes: z.array(z.enum(PERMS)).min(1), spaces: z.array(z.string()).default([]), expires_in_days: z.number().int().min(1).max(3650).optional(), private_key: z.boolean().optional().openapi({ description: "also create a key protected by the token itself, so this agent can read private notes shared with it" }) })) },
     responses: { 201: ok("Token"), ...errs },
   }), async (c) => {
     const b = c.req.valid("json");
-    return c.json(await svc.createToken(ctx, actorOf(c), { name: b.name, scopes: b.scopes, spaces: b.spaces, expiresInDays: b.expires_in_days }), 201);
+    return c.json(await svc.createToken(ctx, actorOf(c), { name: b.name, scopes: b.scopes, spaces: b.spaces, expiresInDays: b.expires_in_days, privateKey: b.private_key }), 201);
   });
   r.openapi(createRoute({ method: "delete", path: "/api/v1/tokens/{id}", summary: "Revoke a token", tags: ["tokens"], request: { params: z.object({ id: z.string() }) }, responses: { 200: ok("Revoked"), ...errs } }), async (c) => {
     await svc.revokeToken(ctx, actorOf(c), c.req.valid("param").id);

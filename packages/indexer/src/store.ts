@@ -197,6 +197,14 @@ export class IndexStore {
     return (await this.db.all(sql, params)).map(toNote);
   }
 
+  /** Notes whose file is encrypted: only their public header is indexed. */
+  async encryptedNotes(f: NoteFilter = {}): Promise<NoteRow[]> {
+    const w = noteWhere(f);
+    // A cheap pre-filter in SQL; the exact test is on the parsed header, since a plain note may mention the word.
+    const rows = await this.db.all(`SELECT n.* FROM notes n WHERE n.frontmatter LIKE ?${w.sql} ORDER BY n.id`, ['%"encrypted"%', ...w.params]);
+    return rows.map(toNote).filter((n) => typeof n.frontmatter["encrypted"] === "object" && n.frontmatter["encrypted"] !== null);
+  }
+
   /** How many notes of each type are in each status, for the notes the filter lets through. */
   async stats(f: NoteFilter = {}): Promise<{ type: string | null; status: string | null; count: number }[]> {
     const w = noteWhere(f);

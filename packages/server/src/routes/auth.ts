@@ -15,8 +15,12 @@ export function authenticate(ctx: Ctx, metrics: Metrics): MiddlewareHandler<AppE
     const header = c.req.header("authorization");
     if (header) {
       const m = /^Bearer\s+(.+)$/i.exec(header);
-      const token = m?.[1] ? await ctx.sys.findToken(m[1].trim()) : null;
-      return token ? { actor: actorFromToken(token, "bearer"), via: "bearer" } : null;
+      const plaintext = m?.[1]?.trim();
+      const token = plaintext ? await ctx.sys.findToken(plaintext) : null;
+      if (!token || !plaintext) return null;
+      // An agent's own token also unlocks the key bound to it (cached, so this is a lookup after the first call).
+      await ctx.keys.unlockWithToken(token.id, plaintext);
+      return { actor: actorFromToken(token, "bearer"), via: "bearer" };
     }
     const session = verify<{ k: "user" | "token"; id: string; exp: number }>(getCookie(c, SESSION_COOKIE), ctx.sessionSecret, ctx.now().getTime());
     if (!session) return null;

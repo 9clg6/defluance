@@ -25,6 +25,8 @@ export interface SearchHit {
   /** Best cosine similarity of the note's matching chunk, when the vector index matched it. */
   vector?: number;
   sources: ("fts" | "vector")[];
+  /** The note is encrypted and was found in the private index of an unlocked key. */
+  private?: boolean;
 }
 
 interface ChunkRow {
@@ -40,7 +42,7 @@ const RRF_K = 60;
 /** Measured on fixtures/vault-semantic: 77% to 82% first-place hits on paraphrases, no loss on exact terms. */
 export const VECTOR_WEIGHT = 1.5;
 
-function snippet(content: string, tokens: string[]): string {
+export function snippet(content: string, tokens: string[]): string {
   const lower = content.toLowerCase();
   let at = -1;
   for (const t of tokens) {

@@ -44,6 +44,12 @@ export function useMiddleware(app: Hono<AppEnv>, ctx: Ctx, metrics: Metrics): vo
     }),
   );
 
+  // API answers can carry private text: no browser or proxy cache may keep them.
+  app.use("/api/*", async (c, next) => {
+    await next();
+    c.header("cache-control", "no-store");
+  });
+
   // Body size: webhooks may carry up to 25 MB (GitHub's cap), the API a few MB, auth forms almost nothing.
   app.use("/webhooks/*", limit(26 * MB));
   app.use("/mcp", limit(5 * MB));
