@@ -54,6 +54,24 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # the same image with the multilingual meaning model baked in: search by meaning with nothing else to set up
+      - id: meta-local
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: suffix=-local,onlatest=true
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: EMBED=local
+          tags: ${{ steps.meta-local.outputs.tags }}
+          labels: ${{ steps.meta-local.outputs.labels }}
+          cache-from: type=gha,scope=local
+          cache-to: type=gha,mode=max,scope=local
 
   notes:
     runs-on: ubuntu-latest

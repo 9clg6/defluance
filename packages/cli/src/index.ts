@@ -27,16 +27,18 @@ const USAGE = `defluance <command>
   new <type> <title> [--dir d] [--owner o] [--vault v]
                                     create a note from its template
   index [dir] [--rebuild]           index the vault (full text, embeddings, links)
-  query <text> [--vault v] [--type t] [--status s] [--limit n]
+  query <text> [--vault v] [--mode keyword|meaning|hybrid|smart] [--type t] [--status s] [--limit n]
   serve [dir] [--port 4000] [--host 127.0.0.1] [--open]
                                     web UI, REST API and MCP endpoint
   mcp [dir]                         MCP server on stdio, for Claude Code and other agents
   token create <name> [--scopes read,write] [--spaces a,b] [--expires days]
   token list | token revoke <id>
-  eval <questions.yaml> [--vault v] answer a question set from the vault, check citations
+  eval <questions.yaml> [--vault v] [--search [--mode m]]
+                                    answer a question set and check citations, or measure how well search ranks
   resync-github [dir]               re-read issues and pull requests from GitHub
+  models install [model]            install the local embedding runtime and model (search by meaning, offline)
 
-Environment: DFL_EMBED (hash, ollama:<model>, openai:<model>), DFL_LLM (anthropic:<model>, ...), DFL_DATABASE_URL.
+Environment: DFL_EMBED (hash, local, ollama:<model>, openai:<model>), DFL_LLM (anthropic:<model>, ...), DFL_DATABASE_URL.
 `;
 
 async function exists(path: string): Promise<boolean> {
@@ -143,6 +145,8 @@ export async function run(argv: string[], io: IO): Promise<number> {
         type: { type: "string" },
         status: { type: "string" },
         limit: { type: "string" },
+        mode: { type: "string" },
+        search: { type: "boolean" },
       },
     });
     const [cmd, ...rest] = positionals;
@@ -171,7 +175,7 @@ export async function run(argv: string[], io: IO): Promise<number> {
           io.err("usage: defluance query <text>");
           return 2;
         }
-        return await (await import("./commands/data.js")).queryCommand(values.vault, rest.join(" "), { type: values.type, status: values.status, limit: values.limit ? Number(values.limit) : undefined }, io);
+        return await (await import("./commands/data.js")).queryCommand(values.vault, rest.join(" "), { type: values.type, status: values.status, limit: values.limit ? Number(values.limit) : undefined, mode: values.mode }, io);
       case "serve":
         return await (await import("./commands/serve.js")).serve(rest[0] ?? values.vault, { ...(values.port ? { port: Number(values.port) } : {}), ...(values.host ? { host: values.host } : {}), ui: values.ui, open: !!values.open }, io);
       case "mcp":
@@ -183,7 +187,9 @@ export async function run(argv: string[], io: IO): Promise<number> {
           io.err("usage: defluance eval <questions.yaml>");
           return 2;
         }
-        return await (await import("./commands/data.js")).evalCommand(values.vault, rest[0], io);
+        return await (await import("./commands/data.js")).evalCommand(values.vault, rest[0], io, { search: !!values.search, ...(values.mode ? { mode: values.mode } : {}) });
+      case "models":
+        return await (await import("./commands/data.js")).modelsCommand(rest, io);
       case "resync-github":
         return await (await import("./commands/data.js")).resyncGithub(rest[0] ?? values.vault, io);
       default:

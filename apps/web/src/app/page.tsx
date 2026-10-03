@@ -28,10 +28,15 @@ export default function Home() {
   const review = useApi<Page>(`/api/v1/notes${qs({ status: "review", limit: 6 })}`);
   const lint = useApi<{ orphans: string[]; broken: unknown[] }>("/api/v1/graph/lint");
   const [ask, setAsk] = useState<string>();
+  const [deep, setDeep] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
-    const read = () => setAsk(new URLSearchParams(window.location.search).get("ask") ?? undefined);
+    const read = () => {
+      const p = new URLSearchParams(window.location.search);
+      setAsk(p.get("ask") ?? undefined);
+      setDeep(p.get("deep") === "1");
+    };
     read();
     window.addEventListener("popstate", read);
     return () => window.removeEventListener("popstate", read);
@@ -67,7 +72,7 @@ export default function Home() {
       ) : (
         <>
           <div className="max-w-3xl">
-            <AskPanel key={ask ?? "free"} initialQuestion={ask} />
+            <AskPanel key={`${ask ?? "free"}-${deep}`} initialQuestion={ask} initialDeep={deep} />
           </div>
 
           <section aria-labelledby="stats" className="grid grid-cols-2 gap-3 sm:grid-cols-4">

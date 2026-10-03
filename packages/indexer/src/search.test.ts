@@ -18,6 +18,7 @@ describe.each(dialects)("search (%s)", (dialect) => {
       "sessions.md": note("technical-spec", "draft", "# Sessions\n\nSession tokens are signed JWT. They expire after seven days.", "tags: [auth]\n"),
       "produit/billing.md": note("functional-spec", "draft", "# Billing\n\nInvoices are generated monthly. Tax rates depend on the country."),
       "produit/réinitialisation.md": note("note", "draft", "# Réinitialisation\n\nProcédure de réinitialisation des accès."),
+      "produit/guide.md": note("note", "draft", "# Guide\n\n## Intro\n\nZebrafish are small.\n\n## Care\n\nFeed the zebrafish twice a day.\n\n## Breeding\n\nZebrafish breed in groups."),
     });
     cleanup = v.remove;
     await indexVault(store, {
@@ -74,12 +75,53 @@ describe.each(dialects)("search (%s)", (dialect) => {
     expect((await search(store, "invoices", { embedder, spaces: ["produit"] }))[0]?.note.id).toBe("produit/billing");
   });
 
+  it("keyword mode ignores vectors, meaning mode ignores words", async () => {
+    const kw = await search(store, "jwt tokens expire", { embedder, mode: "keyword" });
+    expect(kw.length).toBeGreaterThan(0);
+    expect(kw.every((h) => h.sources.length === 1 && h.sources[0] === "fts")).toBe(true);
+    const meaning = await search(store, "jwt tokens expire", { embedder, mode: "meaning" });
+    expect(meaning[0]?.note.id).toBe("sessions");
+    expect(meaning.every((h) => h.sources.every((x) => x === "vector"))).toBe(true);
+    expect(await search(store, "jwt tokens expire", { mode: "meaning" })).toEqual([]); // no embedder: nothing to compare
+  });
+
+  it("returns several passages of a note when asked, best first", async () => {
+    const one = await search(store, "zebrafish", { embedder });
+    expect(one[0]?.note.id).toBe("produit/guide");
+    expect(one[0]?.more).toBeUndefined();
+    const three = await search(store, "zebrafish", { embedder, passages: 3 });
+    expect(three).toHaveLength(one.length);
+    expect(three[0]?.more?.length).toBe(2);
+    const headings = [three[0]?.chunk.heading, ...(three[0]?.more ?? []).map((m) => m.heading)];
+    expect(new Set(headings).size).toBe(3);
+  });
+
+  it("uses the embedder's query side and its own similarity floor", async () => {
+    const calls: string[] = [];
+    const inner = hashEmbedder();
+    const strict = { ...inner, model: inner.model, minSimilarity: 0.99, embedQuery: async (t: string) => (calls.push(t), (await inner.embed([t]))[0] as Float32Array) };
+    expect(await search(store, "jwt tokens expire", { embedder: strict, mode: "meaning" })).toEqual([]);
+    expect(calls).toEqual(["jwt tokens expire"]);
+    const loose = { ...strict, minSimilarity: 0 };
+    expect((await search(store, "jwt tokens expire", { embedder: loose, mode: "meaning" })).length).toBeGreaterThan(0);
+  });
+
+  it("fusion weights decide which side leads", async () => {
+    const q = "jwt tokens expire";
+    const words = await search(store, q, { embedder, mode: "keyword" });
+    const onlyWords = await search(store, q, { embedder, weights: { fts: 1, vector: 0 } });
+    expect(onlyWords.map((h) => h.note.id).filter((id) => words.some((w) => w.note.id === id))).toEqual(words.map((h) => h.note.id));
+    const onlyMeaning = await search(store, q, { embedder, weights: { fts: 0, vector: 1 } });
+    const meaning = await search(store, q, { embedder, mode: "meaning" });
+    expect(onlyMeaning.slice(0, 3).map((h) => h.note.id)).toEqual(meaning.slice(0, 3).map((h) => h.note.id));
+  });
+
   it("returns one hit per note, honours limit, and handles empty or odd queries", async () => {
     const hits = await search(store, "the", { limit: 1 });
     expect(hits.length).toBeLessThanOrEqual(1);
     expect(await search(store, "   ")).toEqual([]);
     expect(await search(store, `"; DROP TABLE notes; --`)).toEqual([]);
     expect(await search(store, "zzzzunknownzzzz")).toEqual([]);
-    expect((await store.counts()).notes).toBe(4);
+    expect((await store.counts()).notes).toBe(5);
   });
 });

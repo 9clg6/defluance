@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@seriousme/openapi-schema-validator": "^2.11.0",
-    "@types/pg": "^8.23.1"
+    "@types/pg": "^8.23.1",
+    "ai": "^7.0.127"
   }
 }

@@ -8,6 +8,7 @@ links:
   - "[[guide-mcp|related]]"
   - "[[guide-github|related]]"
   - "[[guide-deploy|related]]"
+  - "[[guide-search|related]]"
 ---
 # Getting started
 
@@ -70,9 +71,9 @@ It reports missing fields, unknown types and statuses, broken links, and notes n
 
 ## Search and ask
 
-- `Ctrl+K` (`Cmd+K` on Mac) searches every note. Filter by type or status.
+- `Ctrl+K` (`Cmd+K` on Mac) searches every note. Filter by type or status, and pick a mode. The **Search** page has the full results with the matched words highlighted.
 - The home page and each note's **Ask** tab answer questions in plain language and always list their sources. On a note, only that note and the notes linked to it are used.
-- Search works offline with `DFL_EMBED=hash`, which matches shared vocabulary. For search by meaning, run a local model with Ollama (`DFL_EMBED=ollama:nomic-embed-text`) or use `openai:text-embedding-3-small`. Changing the model re-embeds the vault.
+- By default search matches words. To find text that says the same thing in other words, in any language, install a meaning model: `defluance models install`, then `DFL_EMBED=local`. Everything about modes, models, smart search and in-depth questions is in [[guide-search]].
 
 ## Next
 

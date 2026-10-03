@@ -613,6 +613,7 @@ Ce que le code fait réellement, quand il diffère du plan ci-dessus. Chaque éc
 | Node 24 | Node 22.13 ou plus | Version installée. `node:sqlite` stable sans drapeau à partir de 22.13 |
 | pino | Logs JSON sur stdout, sans dépendance | Même contenu, moins de dépendances |
 | Reranker du RAG | Aucun | Citations validées structurellement : une citation est toujours un passage récupéré. Réponse extractive sans LLM, refus sans source |
+| Embeddings via le seul AI SDK | Embedder `local` en plus : `@huggingface/transformers`, installé à la demande dans `~/.defluance/runtime`, modèle multilingue MiniLM quantifié | Recherche par le sens sans service ni clé. Le runtime pèse 480 Mo : jamais dans le paquet de base. Passages découpés en fenêtres de 85 mots (le modèle lit 128 jetons) et moyennés |
 | Une page graphe par type de lien | `react-force-graph-2d`, liste accessible en doublon | Canvas non lisible par un lecteur d'écran |
 
 ## Décisions prises à l'implémentation
@@ -623,6 +624,20 @@ Ce que le code fait réellement, quand il diffère du plan ci-dessus. Chaque éc
 - **D13. Premier démarrage.** Un token admin est créé et affiché une fois (ou `DFL_ADMIN_TOKEN` fixé). La connexion locale passe par ce token, jamais par un accès ouvert.
 - **D14. Options de vault ajoutées.** `derive_status`, `pr_comments`, `vault_repo`, `vault_push` dans `.defluance/config.yaml`.
 - **D15. Même lien dans le frontmatter et le corps.** Compté une fois à l'affichage.
+
+- **D16. Indexation en deux temps.** Le texte est indexé aussitôt (recherche par mots immédiate), les vecteurs d'un modèle lent sont calculés en arrière-plan avec progression, reprise après échec et relance chaque minute. Le démarrage du serveur ne dépend plus de la vitesse du modèle.
+- **D17. Seuil de similarité par modèle.** Chaque embedder dit où commence « sans rapport » (0,2 pour MiniLM, mesuré : toutes les fiches attendues au-dessus, 3 questions hors sujet sur 4 en dessous). Fusion hybride : poids du côté vectoriel ×1,5 pour un modèle sémantique (mesuré, voir plus bas), 1 pour `hash`.
+- **D18. Recherche assistée par LLM.** `smart` : plan de recherche en JSON (reformulations, filtres) lu de façon défensive, filtres limités au vocabulaire du vault et abandonnés s'ils laissent moins de 3 résultats, reclassement facultatif. `deep` : boucle d'outils (search, read_note, neighbors) bornée à 6 tours, dernier tour sans outil, citations limitées aux passages renvoyés par les outils, mêmes droits d'espace que le reste.
+
+## Qualité de recherche (`defluance eval --search`, 14 notes, 28 questions dont 22 paraphrases)
+
+| Mode | Bonne note en premier, paraphrases | Termes exacts | Dans le top 3, toutes |
+|------|------------------------------------|---------------|-----------------------|
+| Mots | 50 % | 100 % | 75 % |
+| Sens (modèle local) | 91 % | 100 % | 96 % |
+| Auto (modèle local) | 82 % | 100 % | 96 % |
+
+Jeu volontairement petit et favorable aux paraphrases : un contrôle de cohérence, pas un benchmark.
 
 ## Mesures (10 000 notes, `pnpm bench`)
 

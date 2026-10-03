@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { ask, type AskResult } from "@defluance/ai";
+import { ask, deepAsk, smartSearch, type AskResult, type SmartResult } from "@defluance/ai";
 import {
   impact as graphImpact,
   lint as graphLint,
@@ -11,6 +11,7 @@ import {
   type GhNode,
   type NoteFilter,
   type NoteRow,
+  type SearchMode,
 } from "@defluance/indexer";
 import {
   addFrontmatterLink,
@@ -192,19 +193,35 @@ export async function noteHistory(ctx: Ctx, actor: Actor, id: string, opts: { di
   return { id: note.id, commit: hash, patch };
 }
 
-export async function searchNotes(ctx: Ctx, actor: Actor, q: string, f: NoteFilter & { limit?: number | undefined }) {
+export async function searchNotes(ctx: Ctx, actor: Actor, q: string, f: NoteFilter & { limit?: number | undefined; mode?: SearchMode | undefined; passages?: number | undefined }) {
   const readable = await readSpaces(ctx, actor);
   const spaces = f.space ? (readable && !readable.includes(f.space) ? [] : undefined) : readable;
   return indexSearch(ctx.store, q, { ...f, spaces, embedder: ctx.embedder, limit: Math.min(f.limit ?? 20, 50) });
 }
 
-export async function askQuestion(ctx: Ctx, actor: Actor, question: string, f: NoteFilter & { scopeNote?: string | undefined; scopeDepth?: number | undefined } = {}): Promise<AskResult> {
+/** Search with the language model in front: reformulations, inferred filters, optional reranking. Plain hybrid without a model. */
+export async function smartSearchNotes(ctx: Ctx, actor: Actor, q: string, f: NoteFilter & { limit?: number | undefined; passages?: number | undefined; rerank?: boolean | undefined }): Promise<SmartResult> {
   const readable = await readSpaces(ctx, actor);
   const spaces = f.space ? (readable && !readable.includes(f.space) ? [] : undefined) : readable;
-  const { scopeNote, scopeDepth, ...filter } = f;
+  const schema = await ctx.getSchema();
+  return smartSearch(ctx.store, q, {
+    ...f,
+    spaces,
+    embedder: ctx.embedder,
+    llm: ctx.llm,
+    limit: Math.min(f.limit ?? 10, 30),
+    vocabulary: { types: Object.keys(schema.types).filter((t) => t !== "issue" && t !== "pull-request"), statuses: schema.statuses },
+  });
+}
+
+export async function askQuestion(ctx: Ctx, actor: Actor, question: string, f: NoteFilter & { scopeNote?: string | undefined; scopeDepth?: number | undefined; deep?: boolean | undefined; maxSteps?: number | undefined } = {}): Promise<AskResult> {
+  const readable = await readSpaces(ctx, actor);
+  const spaces = f.space ? (readable && !readable.includes(f.space) ? [] : undefined) : readable;
+  const { scopeNote, scopeDepth, deep, maxSteps, ...filter } = f;
   // "Ask about this note": retrieval is limited to the note and the notes within `scopeDepth` links of it.
   const ids = scopeNote ? (await graphNeighborsOf(ctx, actor, scopeNote, { depth: scopeDepth ?? 1 })).nodes.map((n) => n.id) : undefined;
-  return ask(ctx.store, question, { ...filter, spaces, ids, embedder: ctx.embedder, llm: ctx.llm });
+  const opts = { ...filter, spaces, ids, embedder: ctx.embedder, llm: ctx.llm };
+  return deep ? deepAsk(ctx.store, question, { ...opts, ...(maxSteps ? { maxSteps } : {}) }) : ask(ctx.store, question, opts);
 }
 
 export async function vaultSchema(ctx: Ctx) {
@@ -457,8 +474,11 @@ export async function rebuildIndex(ctx: Ctx, actor: Actor) {
 }
 
 export async function indexStatus(ctx: Ctx) {
+  const counts = await ctx.store.counts();
   return {
-    ...(await ctx.store.counts()),
+    ...counts,
+    embedding: { ...ctx.embedding, pending: counts.pending },
+    capabilities: capabilities(ctx),
     embed_model: (await ctx.store.getMeta("embed_model")) || null,
     last_commit: (await ctx.store.getMeta("last_commit")) ?? null,
     indexed_at: (await ctx.store.getMeta("indexed_at")) ?? null,
@@ -541,8 +561,20 @@ export async function auditLog(ctx: Ctx, actor: Actor, f: AuditFilter) {
   return entries.filter((e) => e.target && adminSpaces.includes(spaceOf(config, e.target))).slice(0, f.limit ?? 100);
 }
 
+/** What search can do on this server, so the interface offers only what works. */
+export function capabilities(ctx: Ctx) {
+  return {
+    /** Vectors from a real model: search by meaning. The `hash` embedder only matches shared words. */
+    semantic: !ctx.embedder.model.startsWith("hash"),
+    embedder: ctx.embedder.model,
+    llm: ctx.llm?.id ?? null,
+    /** Deep search needs a model that can call tools. */
+    deep: !!ctx.llm?.model,
+  };
+}
+
 export async function me(ctx: Ctx, actor: Actor) {
-  return { kind: actor.kind, id: actor.id, name: actor.name, spaces: await listSpaces(ctx, actor), oauth: !!ctx.oauth, local: ctx.localMode };
+  return { kind: actor.kind, id: actor.id, name: actor.name, spaces: await listSpaces(ctx, actor), oauth: !!ctx.oauth, local: ctx.localMode, capabilities: capabilities(ctx) };
 }
 
 export { actorFromToken };

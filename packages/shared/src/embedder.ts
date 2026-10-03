@@ -2,8 +2,22 @@
 export interface Embedder {
   /** Identifies the vector space. A change triggers re-embedding of the whole vault. */
   model: string;
+  /** Embed passages (notes). */
   embed(texts: string[]): Promise<Float32Array[]>;
+  /** Embed a search query. Some models want a different prefix for queries than for passages. Defaults to `embed`. */
+  embedQuery?(text: string): Promise<Float32Array>;
+  /**
+   * Cosine similarity under which a passage is not a match. Scales differ between models,
+   * so each embedder says where "unrelated" ends. Default 0.2.
+   */
+  minSimilarity?: number;
+  /** Real models take minutes on a big vault: index text first, embed in the background. */
+  slow?: boolean;
+  /** Vectors capture meaning, not only shared words (every real model). The `hash` embedder is not. */
+  semantic?: boolean;
 }
+
+export const DEFAULT_MIN_SIMILARITY = 0.2;
 
 export function cosine(a: Float32Array, b: Float32Array): number {
   let dot = 0;
@@ -46,6 +60,7 @@ export function queryTokens(text: string): string[] {
 export function hashEmbedder(dim = 512): Embedder {
   return {
     model: `hash-${dim}`,
+    minSimilarity: 0.2,
     async embed(texts) {
       return texts.map((text) => {
         const v = new Float32Array(dim);

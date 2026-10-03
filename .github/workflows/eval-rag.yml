@@ -24,3 +24,23 @@ jobs:
           DFL_LLM: ${{ vars.DFL_LLM }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  search-quality:
+    # Does search by meaning still put the right note first? Downloads the local model (about 600 MB, cached).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/cache@v4
+        with:
+          path: ~/.defluance
+          key: defluance-local-model-v1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node packages/cli/dist/bin.js models install
+      - run: DFL_TEST_LOCAL=1 DFL_RUNTIME_DIR=$HOME/.defluance/runtime DFL_MODEL_CACHE=$HOME/.defluance/models pnpm --filter @defluance/ai test -- search-quality
+      - run: DFL_EMBED=local node packages/cli/dist/bin.js eval fixtures/vault-semantic/questions.yaml --vault fixtures/vault-semantic --search

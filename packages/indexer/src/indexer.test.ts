@@ -1,7 +1,8 @@
 import { defaultConfig } from "@defluance/vault-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { hashEmbedder, type Embedder } from "@defluance/shared";
-import { indexVault } from "./indexer.js";
+import { backfillEmbeddings, indexVault } from "./indexer.js";
+import { search } from "./search.js";
 import type { IndexStore } from "./store.js";
 import { dialects, makeVault, note, openTestStore, resetStore } from "./test-env.js";
 
@@ -130,5 +131,106 @@ describe.each(dialects)("indexVault (%s)", (dialect) => {
     const v = await vault({ "a.md": note("note", "draft", "x"), ".obsidian/x.md": "# hidden", "img.png": "x" });
     await indexVault(store, { root: v.root });
     expect((await store.counts()).notes).toBe(1);
+  });
+});
+
+describe.each(dialects)("deferred embeddings (%s)", (dialect) => {
+  let store: IndexStore;
+  const vaults: { remove(): Promise<void> }[] = [];
+  beforeAll(async () => {
+    store = await openTestStore(dialect);
+  });
+  afterEach(async () => {
+    await resetStore(store);
+    await Promise.all(vaults.splice(0).map((v) => v.remove()));
+  });
+  afterAll(() => store.db.close());
+
+  const slow = (calls: string[][] = []): Embedder => {
+    const inner = hashEmbedder(64);
+    return { model: "slow-64", slow: true, minSimilarity: 0.1, embed: (t) => (calls.push(t), inner.embed(t)) };
+  };
+  const vault = async (files: Record<string, string>) => {
+    const v = await makeVault(files);
+    vaults.push(v);
+    return v;
+  };
+  const many = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`n${i}.md`, note("note", "draft", `# N${i}\n\nunique${i} words about topic${i % 3}`)]));
+
+  it("a slow embedder stores text at once and leaves vectors for the backfill", async () => {
+    const calls: string[][] = [];
+    const e = slow(calls);
+    const v = await vault(many(10));
+    const r = await indexVault(store, { root: v.root, embedder: e });
+    expect(r).toMatchObject({ added: 10, embedded: 0, deferred: 10 });
+    expect(calls).toHaveLength(0);
+    expect(await store.counts()).toMatchObject({ chunks: 10, embedded: 0, pending: 10 });
+    expect(await store.getMeta("embed_model")).toBe("slow-64");
+    // keyword search already works
+    expect((await search(store, "unique3", { embedder: e })).map((h) => h.note.id)).toEqual(["n3"]);
+
+    const seen: number[] = [];
+    const done = await backfillEmbeddings(store, e, { batch: 4, onProgress: (p) => seen.push(p.done) });
+    expect(done).toEqual({ done: 10, total: 10 });
+    expect(seen[0]).toBe(0);
+    expect(seen.at(-1)).toBe(10);
+    expect([...seen].sort((a, b) => a - b)).toEqual(seen);
+    expect(await store.counts()).toMatchObject({ embedded: 10, pending: 0 });
+    expect((await search(store, "unique3 words", { embedder: e, mode: "meaning" }))[0]?.note.id).toBe("n3");
+  });
+
+  it("an eager embedder (hash) still embeds inside indexVault unless told otherwise", async () => {
+    const v = await vault(many(3));
+    expect(await indexVault(store, { root: v.root, embedder: hashEmbedder(64) })).toMatchObject({ embedded: 3, deferred: 0 });
+    const v2 = await vault(many(3));
+    await resetStore(store);
+    expect(await indexVault(store, { root: v2.root, embedder: hashEmbedder(64), deferEmbeddings: true })).toMatchObject({ embedded: 0, deferred: 3 });
+  });
+
+  it("resumes where it stopped after a failure, reusing the cache", async () => {
+    let failOnce = true;
+    const inner = hashEmbedder(64);
+    const e: Embedder = { model: "flaky", slow: true, embed: async (t) => { if (failOnce && t.length > 0) { failOnce = false; throw new Error("model hiccup"); } return inner.embed(t); } };
+    const v = await vault(many(6));
+    await indexVault(store, { root: v.root, embedder: e });
+    await expect(backfillEmbeddings(store, e, { batch: 3 })).rejects.toThrow("model hiccup");
+    expect((await store.counts()).embedded).toBe(0);
+    const r = await backfillEmbeddings(store, e, { batch: 3 });
+    expect(r.done).toBe(6);
+    expect(await store.counts()).toMatchObject({ embedded: 6, pending: 0 });
+  });
+
+  it("picks up notes added while the vectors are not all there yet", async () => {
+    const e = slow();
+    const v = await vault(many(4));
+    await indexVault(store, { root: v.root, embedder: e });
+    await backfillEmbeddings(store, e, { batch: 2 });
+    await v.write("late.md", note("note", "draft", "# Late\n\nbrand new content"));
+    expect(await indexVault(store, { root: v.root, embedder: e })).toMatchObject({ added: 1, deferred: 1 });
+    expect((await store.counts()).pending).toBe(1);
+    expect((await backfillEmbeddings(store, e)).done).toBe(1);
+    expect((await store.counts()).pending).toBe(0);
+  });
+
+  it("a changed model clears the old vectors and defers the new ones", async () => {
+    const v = await vault(many(5));
+    await indexVault(store, { root: v.root, embedder: slow() });
+    await backfillEmbeddings(store, slow());
+    const next: Embedder = { ...slow(), model: "slow-v2" };
+    const r = await indexVault(store, { root: v.root, embedder: next });
+    expect(r).toMatchObject({ full: true, deferred: 5 });
+    expect(await store.counts()).toMatchObject({ embedded: 0, pending: 5 });
+    await backfillEmbeddings(store, next);
+    expect((await store.counts()).embedded).toBe(5);
+  });
+
+  it("can be stopped", async () => {
+    const e = slow();
+    const v = await vault(many(8));
+    await indexVault(store, { root: v.root, embedder: e });
+    const ctl = new AbortController();
+    const r = await backfillEmbeddings(store, e, { batch: 2, signal: ctl.signal, onProgress: (p) => { if (p.done >= 4) ctl.abort(); } });
+    expect(r.done).toBe(4);
+    expect((await store.counts()).pending).toBe(4);
   });
 });

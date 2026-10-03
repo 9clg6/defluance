@@ -144,6 +144,7 @@ export function createApp(ctx: Ctx) {
         defluance_notes: counts.notes,
         defluance_chunks: counts.chunks,
         defluance_edges: counts.edges,
+        defluance_embeddings_pending: (await ctx.store.counts()).pending,
         defluance_jobs_pending: await ctx.jobs.pending(),
         defluance_jobs_failed: (await ctx.jobs.failed()).length,
       }),
@@ -299,9 +300,23 @@ export function createApp(ctx: Ctx) {
   );
 
   // search, graph, ask
-  app.openapi(createRoute({ method: "get", path: "/api/v1/search", summary: "Hybrid full-text and semantic search", tags: ["search"], request: { query: z.object({ q: z.string().min(1), ...filterQuery, limit: z.coerce.number().int().min(1).max(50).optional() }) }, responses: { 200: ok("Hits"), ...errs } }), async (c) => {
+  app.openapi(createRoute({
+    method: "get", path: "/api/v1/search", summary: "Search by words, by meaning, or both", tags: ["search"],
+    description: "`mode`: `keyword` matches words, `meaning` compares vectors (needs a real embedding model, see `capabilities` in /me), `hybrid` (default) fuses both. `passages` returns more than the best passage of each note.",
+    request: { query: z.object({ q: z.string().min(1), ...filterQuery, limit: z.coerce.number().int().min(1).max(50).optional(), mode: z.enum(["keyword", "meaning", "hybrid"]).optional(), passages: z.coerce.number().int().min(1).max(5).optional() }) },
+    responses: { 200: ok("Hits"), ...errs },
+  }), async (c) => {
     const { q, ...f } = c.req.valid("query");
     return c.json(await svc.searchNotes(ctx, actorOf(c), q, f), 200);
+  });
+  app.openapi(createRoute({
+    method: "get", path: "/api/v1/search/smart", summary: "Search with a language model in front", tags: ["search"],
+    description: "The model rewrites the question into several searches (and the other language), infers filters such as \"approved specs\", and can rerank. `understood` says what it did. Without a model configured, the answer is plain hybrid search and `understood.fallback` says so.",
+    request: { query: z.object({ q: z.string().min(1), ...filterQuery, limit: z.coerce.number().int().min(1).max(30).optional(), passages: z.coerce.number().int().min(1).max(5).optional(), rerank: z.enum(["true", "false"]).optional() }) },
+    responses: { 200: ok("Hits and what was understood"), ...errs },
+  }), async (c) => {
+    const { q, rerank, ...f } = c.req.valid("query");
+    return c.json(await svc.smartSearchNotes(ctx, actorOf(c), q, { ...f, rerank: rerank === "true" }), 200);
   });
 
   const gid = z.object({ id: z.string().min(1) });
@@ -332,11 +347,11 @@ export function createApp(ctx: Ctx) {
   app.openapi(createRoute({
     method: "post", path: "/api/v1/ask", summary: "Ask a question, answered from the notes with citations", tags: ["search"],
     description: "Every claim cites a note, heading and commit. When no note supports an answer the result has `refused: true`.",
-    request: { body: jsonBody(z.object({ question: z.string().min(1), ...filterQuery, scope_note: z.string().optional().openapi({ description: "limit retrieval to this note and its neighbours" }), scope_depth: z.number().int().min(1).max(3).optional() })) },
+    request: { body: jsonBody(z.object({ question: z.string().min(1), ...filterQuery, scope_note: z.string().optional().openapi({ description: "limit retrieval to this note and its neighbours" }), scope_depth: z.number().int().min(1).max(3).optional(), deep: z.boolean().optional().openapi({ description: "let the model search, read notes and follow links over several steps (needs a model that supports tools). The answer lists the steps taken." }), max_steps: z.number().int().min(2).max(10).optional() })) },
     responses: { 200: ok("Answer"), ...errs },
   }), async (c) => {
-    const { question, scope_note, scope_depth, ...f } = c.req.valid("json");
-    return c.json(await svc.askQuestion(ctx, actorOf(c), question, { ...f, scopeNote: scope_note, scopeDepth: scope_depth }), 200);
+    const { question, scope_note, scope_depth, deep, max_steps, ...f } = c.req.valid("json");
+    return c.json(await svc.askQuestion(ctx, actorOf(c), question, { ...f, scopeNote: scope_note, scopeDepth: scope_depth, deep, maxSteps: max_steps }), 200);
   });
 
   // index, audit, tokens

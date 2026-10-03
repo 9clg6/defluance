@@ -6,6 +6,7 @@ import { createEmbedder, createLlm, type Llm } from "@defluance/ai";
 import {
   IndexStore,
   JobQueue,
+  backfillEmbeddings,
   indexVault,
   openPostgres,
   openSqlite,
@@ -32,8 +33,20 @@ import { SystemStore, type Role } from "./system.js";
 
 export type Env = Record<string, string | undefined>;
 
+/** Vectors computed in the background after the text is indexed (real models are slow). */
+export interface EmbeddingProgress {
+  running: boolean;
+  done: number;
+  total: number;
+  error: string | null;
+}
+
 export interface Ctx {
   root: string;
+  /** Progress of the background embedding. `running` is false when every passage has its vector. */
+  embedding: EmbeddingProgress;
+  /** Resolves when the running background embedding ends. Tests wait on it. */
+  embeddingDone: Promise<void>;
   db: Db;
   store: IndexStore;
   sys: SystemStore;
@@ -131,6 +144,8 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
 
   return {
     root,
+    embedding: { running: false, done: 0, total: 0, error: null },
+    embeddingDone: Promise.resolve(),
     db,
     store,
     sys,
@@ -165,6 +180,32 @@ export interface IndexPayload {
   paths?: string[];
 }
 
+/**
+ * Compute the missing vectors without blocking anyone. One run at a time. A failure (model download, provider
+ * outage) is recorded and retried a minute later: search keeps working by words in the meantime.
+ */
+export function startBackfill(ctx: Ctx): void {
+  if (ctx.embedding.running || !ctx.embedder.slow) return;
+  ctx.embedding = { running: true, done: 0, total: 0, error: null };
+  ctx.embeddingDone = (async () => {
+    try {
+      await backfillEmbeddings(ctx.store, ctx.embedder, {
+        onProgress: (p) => {
+          ctx.embedding.done = p.done;
+          ctx.embedding.total = p.total;
+        },
+      });
+      ctx.embedding.error = null;
+    } catch (e) {
+      ctx.embedding.error = e instanceof Error ? e.message : String(e);
+      ctx.log({ msg: "embedding failed", error: ctx.embedding.error });
+      setTimeout(() => startBackfill(ctx), 60_000).unref();
+    } finally {
+      ctx.embedding.running = false;
+    }
+  })();
+}
+
 export async function indexNow(ctx: Ctx, paths?: string[]): Promise<void> {
   const config = await ctx.getConfig();
   const schema = await ctx.getSchema();
@@ -177,6 +218,7 @@ export async function indexNow(ctx: Ctx, paths?: string[]): Promise<void> {
     linkTypes: schema.linkTypes,
     ...(paths ? { paths } : {}),
   });
+  startBackfill(ctx);
 }
 
 export function jobHandlers(ctx: Ctx): Record<string, Handler> {

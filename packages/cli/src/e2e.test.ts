@@ -12,6 +12,7 @@ import { startServe } from "./commands/serve.js";
 const note = (type: string, status: string, body: string, extra = "") => `---\ntype: ${type}\nstatus: ${status}\nowner: ana\n${extra}---\n${body}\n`;
 const BIN = fileURLToPath(new URL("../dist/bin.js", import.meta.url));
 const EVAL = fileURLToPath(new URL("../../../fixtures/vault-eval", import.meta.url));
+const SEMANTIC = fileURLToPath(new URL("../../../fixtures/vault-semantic", import.meta.url));
 
 let dir: string;
 let out: string[];
@@ -63,6 +64,31 @@ describe("index, query, token, eval", () => {
   it("eval answers the 30-question set with the offline embedder", async () => {
     expect(await cli("eval", join(EVAL, "questions.yaml"), "--vault", EVAL)).toBe(0);
     expect(out.at(-1)).toBe("30/30 passed, 24/24 answers with valid citations (extractive, hash-512)");
+  });
+});
+
+describe("search commands", () => {
+  it("query takes a mode, and rejects an unknown one", async () => {
+    expect(await cli("query", "cookies", "expire", "--vault", dir, "--mode", "keyword")).toBe(0);
+    expect(out[0]).toContain("specs/sessions");
+    out = [];
+    expect(await cli("query", "cookies", "--vault", dir, "--mode", "fuzzy")).toBe(2);
+    expect(out.join("\n")).toContain('unknown mode "fuzzy"');
+    out = [];
+    // smart without a model: explains, still searches
+    expect(await cli("query", "cookies", "expire", "--vault", dir, "--mode", "smart")).toBe(0);
+    expect(out[0]).toContain("no language model configured");
+    expect(out.join("\n")).toContain("specs/sessions");
+  });
+
+  it("eval --search reports recall and MRR for the offline embedder", async () => {
+    expect(await cli("eval", join(SEMANTIC, "questions.yaml"), "--vault", SEMANTIC, "--search", "--mode", "keyword")).toBe(0);
+    expect(out.at(-1)).toMatch(/^keyword, hash-512: recall@1 \d+%, recall@3 \d+%, MRR 0\.\d\d over 28 questions; \d\/4 unanswerable/);
+  });
+
+  it("models explains its usage", async () => {
+    expect(await cli("models")).toBe(2);
+    expect(out.join("\n")).toContain("models install");
   });
 });
 

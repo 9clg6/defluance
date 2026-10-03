@@ -1,0 +1,37 @@
+# Retrieval set. First 22: paraphrases that share almost no words with the note, in English and French, across languages.
+# Then 6 exact-term queries, where the words are in the note. Both kinds matter: a good search does well on each.
+# `expect`: any of these notes should come first. `refuse`: nothing in the vault answers.
+questions:
+  - { q: "How long can I wait before the password recovery email stops working?", expect: [password-reset, reinitialisation] }
+  - { q: "I lost my credentials, how do I get back into my account?", expect: [password-reset, reinitialisation] }
+  - { q: "When do customers get their bill?", expect: [invoicing, facturation] }
+  - { q: "How soon must a customer settle what they owe?", expect: [invoicing, facturation] }
+  - { q: "Where does the browser keep the proof that I am logged in?", expect: [session-cookies] }
+  - { q: "How long does a login stay active?", expect: [session-cookies] }
+  - { q: "What happens if a client sends too many requests?", expect: [rate-limiting] }
+  - { q: "How many calls per minute can an integration make?", expect: [rate-limiting] }
+  - { q: "Can I recover a page I removed last week?", expect: [data-retention] }
+  - { q: "Can a customer get a copy of all their information?", expect: [data-retention] }
+  - { q: "What if the customer's server is unreachable when we send an event?", expect: [webhooks] }
+  - { q: "Who is allowed to invite people and handle payment?", expect: [roles] }
+  - { q: "Will I be told when a colleague tags me?", expect: [notifications] }
+  - { q: "Is there a daily summary of what I missed?", expect: [notifications] }
+  - { q: "Can I get my money back after buying?", expect: [refunds] }
+  - { q: "Is it possible to return only a portion of a charge?", expect: [refunds] }
+  - { q: "What does a first-time user have to do to get started?", expect: [onboarding] }
+  - { q: "Is there a reward for completing the setup steps?", expect: [onboarding] }
+  - { q: "quand est-ce que je reçois ma facture ?", expect: [facturation, invoicing] }
+  - { q: "combien de temps le mail pour changer mon mot de passe est-il valable ?", expect: [reinitialisation, password-reset] }
+  - { q: "qui peut voir l'historique des changements de droits ?", expect: [journal-audit] }
+  - { q: "peut-on retrouver un document par son auteur ?", expect: [recherche] }
+  # exact terms: the words are in the note, this is where keyword search shines
+  - { q: "status 429", expect: [rate-limiting] }
+  - { q: "PDF billing contact", expect: [invoicing, facturation] }
+  - { q: "six times webhook", expect: [webhooks] }
+  - { q: "free month team plan", expect: [onboarding] }
+  - { q: "thirty days trash", expect: [data-retention] }
+  - { q: "refresh token cookie", expect: [session-cookies] }
+  - { q: "Does the product support dark mode?", refuse: true }
+  - { q: "Quel est le prix de l'abonnement annuel ?", refuse: true }
+  - { q: "How tall is Mount Everest?", refuse: true }
+  - { q: "What programming language is the mobile app written in?", refuse: true }

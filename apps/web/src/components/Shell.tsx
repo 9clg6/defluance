@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Button, Kbd, Spinner } from "@/components/ui";
 import { CreateNote } from "@/components/CreateNote";
 import { SearchPalette } from "@/components/SearchPalette";
+import { StatusBanners } from "@/components/StatusBanners";
 import { can, useAuth } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
@@ -44,6 +45,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
   const nav = [
     { href: "/", label: t("nav.home"), icon: FileText, show: true },
+    { href: "/search", label: t("search.page.title"), icon: Search, show: true },
     { href: "/graph", label: t("nav.graph"), icon: Network, show: true },
     { href: "/audit", label: t("nav.audit"), icon: ShieldCheck, show: me.spaces.some((s) => s.perms.includes("admin")) },
     { href: "/settings", label: t("nav.settings"), icon: Settings, show: true },
@@ -105,6 +107,7 @@ export function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
       </header>
+      <StatusBanners />
       <main id="main" className="mx-auto max-w-[88rem] px-4 py-6" tabIndex={-1}>
         {children}
       </main>

@@ -6,6 +6,7 @@ tags: [guide, api]
 links:
   - "[[guide-mcp|related]]"
   - "[[guide-security|related]]"
+  - "[[guide-search|related]]"
 ---
 # REST API
 
@@ -42,12 +43,25 @@ curl -X PUT -H "Authorization: Bearer $TOKEN" -H "content-type: application/json
   -d '{"content":"---\ntype: technical-spec\nstatus: draft\nowner: karim\n---\n# Webhooks\n...","base_commit":"<commit>"}'
 ```
 
+## Search modes
+
+```bash
+# words, meaning, or both (default). `passages=3` returns up to three passages per note.
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:4000/api/v1/search?q=password+recovery&mode=meaning&passages=3"
+
+# a language model in front: reformulations, guessed filters, optional rerank. `understood` says what it did.
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:4000/api/v1/search/smart?q=approved+specs+about+logins&rerank=true"
+```
+
+`GET /api/v1/me` and `GET /api/v1/index/status` return `capabilities` (`semantic`, `llm`, `deep`, and the embedder), and `index/status` has the progress of the vectors being prepared. See [[guide-search]].
+
 ## Ask
 
 ```bash
 curl -X POST -H "Authorization: Bearer $TOKEN" -H "content-type: application/json" \
   http://localhost:4000/api/v1/ask \
   -d '{"question":"How long is a reset link valid?","scope_note":"produit/password-reset"}'
+# add "deep": true to let the model search, read and follow links over several steps; the answer then has "steps"
 ```
 
 ```json

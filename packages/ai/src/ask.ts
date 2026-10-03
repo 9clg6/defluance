@@ -17,7 +17,9 @@ export interface AskResult {
   citations: Citation[];
   /** True when no source supported an answer: nothing is invented. */
   refused: boolean;
-  mode: "llm" | "extractive";
+  mode: "llm" | "extractive" | "deep";
+  /** Deep search only: what the agent searched and read, in order. */
+  steps?: { tool: string; input: string; summary: string }[];
 }
 
 export interface AskOptions extends NoteFilter {

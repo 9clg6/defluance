@@ -23,6 +23,11 @@ export interface IndexOptions {
   embedder?: Embedder | null;
   /** HEAD of the vault, stored on notes and chunks for citations. */
   commit?: string | null;
+  /**
+   * Store text first and leave vectors for `backfillEmbeddings`. Default: on when the embedder is slow
+   * (a real model), off otherwise. Search works by words at once, by meaning as vectors arrive.
+   */
+  deferEmbeddings?: boolean;
   /** Only (re)index these note paths (`specs/a.md`). Absent files are removed. Default: scan the whole vault. */
   paths?: string[];
   config?: VaultConfig;
@@ -37,12 +42,14 @@ export interface IndexReport {
   chunks: number;
   embedded: number;
   cacheHits: number;
+  /** Chunks stored without a vector, waiting for `backfillEmbeddings`. */
+  deferred: number;
   full: boolean;
 }
 
 const BATCH = 64;
 
-async function embedAll(
+export async function embedAll(
   store: IndexStore,
   embedder: Embedder,
   items: { key: string; text: string }[],
@@ -127,7 +134,8 @@ export async function indexVault(store: IndexStore, opts: IndexOptions): Promise
     ? [...new Set((opts.paths as string[]).map((p) => p.split("\\").join("/")).filter((p) => p.toLowerCase().endsWith(".md") && !skipped(p)))]
     : await listMarkdown(root);
 
-  const report: IndexReport = { added: 0, updated: 0, removed: 0, unchanged: 0, chunks: 0, embedded: 0, cacheHits: 0, full: !targeted };
+  const report: IndexReport = { added: 0, updated: 0, removed: 0, unchanged: 0, chunks: 0, embedded: 0, cacheHits: 0, deferred: 0, full: !targeted };
+  const defer = !!embedder && (opts.deferEmbeddings ?? embedder.slow === true);
 
   type Prepared = { note: ParsedNote; hash: string; chunks: ReturnType<typeof chunkBody>; isNew: boolean };
   const prepared: Prepared[] = [];
@@ -157,7 +165,7 @@ export async function indexVault(store: IndexStore, opts: IndexOptions): Promise
 
   // Embeddings first (network may be slow), outside the write transaction.
   let vectors = new Map<string, Float32Array>();
-  if (embedder) {
+  if (embedder && !defer) {
     const items = prepared.flatMap((p) =>
       p.chunks.map((c) => ({
         key: sha256(`${p.note.title}\n${c.hash}`),
@@ -205,6 +213,7 @@ export async function indexVault(store: IndexStore, opts: IndexOptions): Promise
           [`${note.id}#${c.ordinal}`, note.id, note.title, c.heading, c.ordinal, c.content, c.hash, v ? vecToBytes(v) : null, commit],
         );
         report.chunks++;
+        if (defer) report.deferred++;
       }
       for (const [i, l] of note.links.entries()) {
         await tx.run(
@@ -224,4 +233,50 @@ export async function indexVault(store: IndexStore, opts: IndexOptions): Promise
     await store.bump(tx);
   });
   return report;
+}
+
+export interface BackfillProgress {
+  done: number;
+  total: number;
+}
+
+/**
+ * Compute the vectors that `indexVault` left out. Safe to run while notes change: it always picks up
+ * whatever chunks still lack a vector. The index version is bumped as vectors arrive so searches see them.
+ */
+export async function backfillEmbeddings(
+  store: IndexStore,
+  embedder: Embedder,
+  o: { batch?: number; onProgress?: (p: BackfillProgress) => void; signal?: AbortSignal } = {},
+): Promise<BackfillProgress> {
+  const batch = o.batch ?? 128;
+  const count = async () => Number((await store.db.get<{ c: number | string }>("SELECT COUNT(*) AS c FROM chunks WHERE embedding IS NULL"))?.c ?? 0);
+  const total = await count();
+  let done = 0;
+  let sinceBump = 0;
+  o.onProgress?.({ done, total });
+  while (!o.signal?.aborted) {
+    const rows = await store.db.all<{ id: string; title: string; heading: string; content: string; content_hash: string }>(
+      "SELECT id, title, heading, content, content_hash FROM chunks WHERE embedding IS NULL ORDER BY id LIMIT ?",
+      [batch],
+    );
+    if (!rows.length) break;
+    const items = rows.map((r) => ({ id: r.id, key: sha256(`${r.title}\n${r.content_hash}`), text: `${r.title}\n${r.heading}\n${r.content}` }));
+    const { vectors } = await embedAll(store, embedder, items);
+    await store.db.transaction(async (tx) => {
+      for (const it of items) {
+        const v = vectors.get(it.key);
+        if (v) await tx.run("UPDATE chunks SET embedding = ? WHERE id = ?", [vecToBytes(v), it.id]);
+      }
+    });
+    done += rows.length;
+    sinceBump += rows.length;
+    if (sinceBump >= 512) {
+      await store.bump();
+      sinceBump = 0;
+    }
+    o.onProgress?.({ done: Math.min(done, total), total: Math.max(total, done) });
+  }
+  if (sinceBump > 0) await store.bump();
+  return { done, total: Math.max(total, done) };
 }

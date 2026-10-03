@@ -261,6 +261,9 @@ importers:
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
+      ai:
+        specifier: ^7.0.127
+        version: 7.0.127(zod@4.6.5)
 
   packages/shared: {}
 

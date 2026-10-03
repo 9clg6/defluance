@@ -39,9 +39,14 @@ export function buildMcpServer(ctx: Ctx, actor: Actor, onCall?: (tool: string, o
     tag: z.string().optional(),
   };
 
-  tool("search", "Hybrid full-text and semantic search over the notes. Returns the best passage of each matching note.", { query: z.string().min(1), ...filters, limit: z.number().int().min(1).max(50).optional() }, (a) =>
-    svc.searchNotes(ctx, actor, a.query, { type: a.type, status: a.status, space: a.space, tag: a.tag, ...(a.limit ? { limit: a.limit } : {}) }),
-  );
+  tool("search", "Search the notes. mode keyword matches words, meaning compares vectors (when the server has an embedding model), hybrid (default) does both, smart lets a language model rewrite the question into several searches, infer filters and rerank, and reports what it understood.", {
+    query: z.string().min(1), ...filters, limit: z.number().int().min(1).max(50).optional(),
+    mode: z.enum(["keyword", "meaning", "hybrid", "smart"]).optional(), rerank: z.boolean().optional().describe("smart mode only: ask the model to order the results"),
+    passages: z.number().int().min(1).max(5).optional().describe("passages returned per note"),
+  }, (a) => {
+    const f = { type: a.type, status: a.status, space: a.space, tag: a.tag, ...(a.limit ? { limit: a.limit } : {}), passages: a.passages };
+    return a.mode === "smart" ? svc.smartSearchNotes(ctx, actor, a.query, { ...f, rerank: a.rerank }) : svc.searchNotes(ctx, actor, a.query, { ...f, mode: a.mode });
+  });
   tool("read_note", "Read one note: frontmatter, markdown body and its typed links.", { id: z.string().describe("note id, the path without .md") }, async (a) => ({
     note: await svc.getNote(ctx, actor, a.id),
     links: await svc.noteLinks(ctx, actor, a.id),
@@ -69,8 +74,8 @@ export function buildMcpServer(ctx: Ctx, actor: Actor, onCall?: (tool: string, o
   tool("create_issue", "Open a GitHub issue from a note and link it back as tracked_by.", {
     id: z.string(), repo: z.string().optional().describe("owner/repo, defaults to the space repository"), title: z.string().optional(), body: z.string().optional(), labels: z.array(z.string()).optional(),
   }, (a) => svc.createIssueFromNote(ctx, actor, a.id, a));
-  tool("ask", "Answer a question from the notes. Every answer cites the notes it used, and the tool refuses when nothing supports an answer.", { question: z.string().min(1), ...filters }, (a) =>
-    svc.askQuestion(ctx, actor, a.question, { type: a.type, status: a.status, space: a.space, tag: a.tag }),
-  );
+  tool("ask", "Answer a question from the notes. Every answer cites the notes it used, and the tool refuses when nothing supports an answer. deep lets the server's model search, read notes and follow links over several steps, for questions that span several specs.", {
+    question: z.string().min(1), ...filters, deep: z.boolean().optional(),
+  }, (a) => svc.askQuestion(ctx, actor, a.question, { type: a.type, status: a.status, space: a.space, tag: a.tag, deep: a.deep }));
   return server;
 }

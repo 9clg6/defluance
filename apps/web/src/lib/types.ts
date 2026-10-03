@@ -5,6 +5,16 @@ export interface Me {
   spaces: { name: string; path: string; repos: string[]; perms: string[] }[];
   oauth: boolean;
   local: boolean;
+  capabilities: Capabilities;
+}
+
+/** What search can do on this server: the interface only offers what works. */
+export interface Capabilities {
+  /** Real embedding model: search by meaning. */
+  semantic: boolean;
+  embedder: string;
+  llm: string | null;
+  deep: boolean;
 }
 
 export interface NoteSummary {
@@ -65,8 +75,25 @@ export interface NoteLinks {
 export interface SearchHit {
   note: { id: string; title: string; type: string | null; status: string | null; space: string; tags: string[] };
   chunk: { id: string; heading: string; snippet: string; commit: string | null };
+  more?: { id: string; heading: string; snippet: string; commit: string | null }[];
   score: number;
+  vector?: number;
   sources: ("fts" | "vector")[];
+}
+
+export type SearchMode = "hybrid" | "keyword" | "meaning" | "smart";
+
+export interface Understood {
+  queries: string[];
+  filters: { type?: string; status?: string; tag?: string };
+  filtersDropped: boolean;
+  reranked: boolean;
+  fallback?: string;
+}
+
+export interface SmartResult {
+  hits: SearchHit[];
+  understood: Understood;
 }
 
 export interface GraphNode {
@@ -100,7 +127,8 @@ export interface AskResult {
   answer: string;
   citations: Citation[];
   refused: boolean;
-  mode: "llm" | "extractive";
+  mode: "llm" | "extractive" | "deep";
+  steps?: { tool: string; input: string; summary: string }[];
 }
 
 export interface VaultSchema {
@@ -155,6 +183,9 @@ export interface IndexStatus {
   indexed_at: string | null;
   jobs_pending: number;
   jobs_failed: number;
+  pending: number;
+  embedding: { running: boolean; done: number; total: number; error: string | null; pending: number };
+  capabilities: Capabilities;
 }
 
 export interface GithubStatus {

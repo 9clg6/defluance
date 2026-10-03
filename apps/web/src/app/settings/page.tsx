@@ -361,6 +361,13 @@ function About() {
           {(status.data.jobs_failed > 0) && <p className="text-destructive">{t("about.failedJobs", { n: status.data.jobs_failed })}</p>}
         </Card>
       )}
+      {status.data && (
+        <Card>
+          <h2 className="mb-1 font-heading text-lg font-semibold">{t("about.search")}</h2>
+          <p>{status.data.capabilities.semantic ? t("about.searchMeaning", { model: status.data.capabilities.embedder }) : t("about.searchWords")}</p>
+          <p className="text-muted-foreground">{status.data.capabilities.llm ? t("about.llmOn", { model: status.data.capabilities.llm }) : t("about.llmOff")}</p>
+        </Card>
+      )}
       <Card>
         <h2 className="mb-1 font-heading text-lg font-semibold">{t("about.license")}</h2>
         <p className="text-muted-foreground">{t("about.licenseBody")}</p>

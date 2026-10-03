@@ -6,6 +6,7 @@ tags: [guide, operations]
 links:
   - "[[guide-security|related]]"
   - "[[guide-github|related]]"
+  - "[[guide-search|related]]"
 ---
 # Deployment and operations
 
@@ -42,12 +43,22 @@ SQLite is used unless `DFL_DATABASE_URL` is set. The data folder (`DFL_DATA_DIR`
 | `DFL_ADMINS`, `DFL_DEFAULT_ROLE` | none | Admin logins, default role |
 | `DFL_ALLOWED_ORIGINS` | the public URL | Extra origins allowed to send cookie-authenticated writes |
 | `DFL_RATE_LIMIT` | 300 | Requests per minute per token or user. 0 disables |
-| `DFL_EMBED`, `DFL_LLM` | hash, none | Models, see the README |
+| `DFL_EMBED`, `DFL_LLM` | hash, none | Models, see [[guide-search]] |
+| `DFL_RUNTIME_DIR`, `DFL_MODEL_CACHE` | `~/.defluance/runtime`, `~/.defluance/models` | Where `DFL_EMBED=local` keeps its runtime and model |
 | `OLLAMA_BASE_URL`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DFL_AI_BASE_URL`, `DFL_AI_API_KEY`, `AI_GATEWAY_API_KEY` | | Provider credentials |
+
+## Search by meaning in Docker
+
+```bash
+docker build --build-arg EMBED=local -t defluance:local .      # bakes the model in (about 600 MB more)
+# or with Compose, set DFL_EMBED=local in .env: the image is built with it
+```
+
+The published `-local` tag is the same image with the model included. A container started from the default image can use `ollama:` or `openai:` models instead.
 
 ## Changing the embedding model
 
-Set `DFL_EMBED` to the new model and restart. The vault is re-embedded once, and unchanged text is served from a cache. `defluance index --rebuild` forces a clean rebuild.
+Set `DFL_EMBED` to the new model and restart. The text stays searchable by words straight away, and the vault is re-embedded once in the background (progress at the top of the app). Unchanged text is served from a cache. `defluance index --rebuild` forces a clean rebuild.
 
 ## Monitoring
 

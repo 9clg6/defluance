@@ -1,15 +1,21 @@
 "use client";
 
 import { Command } from "cmdk";
-import { CornerDownLeft, FilePlus, MessageCircleQuestion } from "lucide-react";
+import { CornerDownLeft, FilePlus, MessageCircleQuestion, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { StatusBadge, TypeBadge } from "@/components/badges";
 import { Dialog, DialogContent, Kbd } from "@/components/ui";
-import { api, notePath, qs } from "@/lib/api";
+import { notePath } from "@/lib/api";
 import { useApi } from "@/hooks/use-api";
+import { ModePicker } from "@/components/ModePicker";
+import { Marked } from "@/components/ResultCard";
+import { Understood } from "@/components/Understood";
+import { useSearch } from "@/hooks/use-search";
+import { queryTerms } from "@/lib/highlight";
+import type { SearchMode } from "@/lib/types";
 import { useT } from "@/lib/i18n";
-import type { SearchHit, VaultSchema } from "@/lib/types";
+import type { VaultSchema } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function SearchPalette({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (o: boolean) => void; onCreate: () => void }) {
@@ -18,34 +24,13 @@ export function SearchPalette({ open, onOpenChange, onCreate }: { open: boolean;
   const [q, setQ] = useState("");
   const [type, setType] = useState<string>();
   const [status, setStatus] = useState<string>();
-  const [hits, setHits] = useState<SearchHit[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<SearchMode>("hybrid");
   const [selected, setSelected] = useState("");
-  const seq = useRef(0);
   const schema = useApi<VaultSchema>(open ? "/api/v1/schema" : null);
-
-  useEffect(() => {
-    if (!open) return;
-    const query = q.trim();
-    if (!query) {
-      setHits([]);
-      setBusy(false);
-      return;
-    }
-    const mine = ++seq.current;
-    setBusy(true);
-    const timer = setTimeout(async () => {
-      try {
-        const r = await api.get<SearchHit[]>(`/api/v1/search${qs({ q: query, type, status, limit: 12 })}`);
-        if (mine === seq.current) setHits(r);
-      } catch {
-        if (mine === seq.current) setHits([]);
-      } finally {
-        if (mine === seq.current) setBusy(false);
-      }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [q, type, status, open]);
+  const results = useSearch({ q: open ? q : "", mode, type, status, limit: 8, passages: 1, debounce: mode === "smart" ? 400 : 150 });
+  const hits = results.hits;
+  const busy = results.loading;
+  const terms = queryTerms(q);
 
   // cmdk keeps the item selected when the list changes: follow the best hit as results arrive.
   useEffect(() => {
@@ -81,6 +66,14 @@ export function SearchPalette({ open, onOpenChange, onCreate }: { open: boolean;
                 </button>
               ))}
             </div>
+            <div className="mt-3">
+              <ModePicker value={mode} onChange={setMode} idPrefix="palette-mode" />
+            </div>
+            {results.understood && mode === "smart" && (
+              <div className="mt-3">
+                <Understood u={results.understood} />
+              </div>
+            )}
           </div>
           <Command.List className="max-h-[50vh] overflow-y-auto p-2">
             {q.trim() && !busy && hits.length === 0 && <Command.Empty className="px-3 py-6 text-center text-sm text-muted-foreground">{t("search.none")}</Command.Empty>}
@@ -95,12 +88,16 @@ export function SearchPalette({ open, onOpenChange, onCreate }: { open: boolean;
                 </span>
                 <span className="line-clamp-2 text-sm text-muted-foreground">
                   {h.chunk.heading !== h.note.title && <strong className="mr-1 font-medium text-foreground">{h.chunk.heading} ·</strong>}
-                  {h.chunk.snippet}
+                  <Marked text={h.chunk.snippet} terms={terms} />
                 </span>
               </Command.Item>
             ))}
             {q.trim() && (
               <Command.Group heading={t("search.actions")} className="mt-1 text-xs text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1">
+                <Command.Item value="__all" onSelect={() => go(`/search/?q=${encodeURIComponent(q.trim())}${mode === "hybrid" ? "" : `&mode=${mode}`}${type ? `&type=${encodeURIComponent(type)}` : ""}${status ? `&status=${encodeURIComponent(status)}` : ""}`)} className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground data-[selected=true]:bg-muted">
+                  <Search className="size-4" aria-hidden />
+                  {t("search.seeAll", { q: q.trim() })}
+                </Command.Item>
                 <Command.Item value="__ask" onSelect={() => go(`/?ask=${encodeURIComponent(q.trim())}`)} className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground data-[selected=true]:bg-muted">
                   <MessageCircleQuestion className="size-4" aria-hidden />
                   {t("search.ask", { q: q.trim() })}

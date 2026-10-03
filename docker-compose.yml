@@ -2,7 +2,11 @@
 # Add a public HTTPS address in front of it with:                           docker compose --profile tls up -d
 services:
   defluance:
-    build: .
+    build:
+      context: .
+      args:
+        # DFL_EMBED=local bakes the multilingual meaning model into the image (about 600 MB more)
+        EMBED: ${DFL_EMBED:-hash}
     image: ghcr.io/defluance/defluance:latest
     restart: unless-stopped
     depends_on:

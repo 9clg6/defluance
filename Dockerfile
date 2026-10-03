@@ -19,10 +19,16 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /src/dist-npm/ ./
 RUN npm install --omit=dev --no-audit --no-fund --loglevel=error && npm cache clean --force
+# Search by meaning, computed inside the container (no key, the text never leaves it):
+#   docker build --build-arg EMBED=local -t defluance:local .
+# bakes the runtime (~480 MB) and the multilingual model (~120 MB) into the image. Default: words only.
+ARG EMBED=hash
+ENV DFL_RUNTIME_DIR=/opt/defluance/runtime DFL_MODEL_CACHE=/opt/defluance/models
+RUN if [ "$EMBED" = "local" ]; then node /app/bin.js models install; fi
 # /vault is the folder of Markdown notes (mount your own), /data holds the index and sessions.
-RUN mkdir -p /vault /data && chown -R node:node /vault /data /app
+RUN mkdir -p /vault /data /opt/defluance && chown -R node:node /vault /data /app /opt/defluance
 USER node
-ENV DFL_HOST=0.0.0.0 DFL_PORT=4000 DFL_DATA_DIR=/data
+ENV DFL_HOST=0.0.0.0 DFL_PORT=4000 DFL_DATA_DIR=/data DFL_EMBED=$EMBED
 EXPOSE 4000
 VOLUME ["/vault", "/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

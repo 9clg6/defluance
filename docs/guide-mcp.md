@@ -6,6 +6,7 @@ tags: [guide, agents]
 links:
   - "[[guide-security|related]]"
   - "[[guide-getting-started|related]]"
+  - "[[guide-search|related]]"
 ---
 # Agents and MCP
 
@@ -32,7 +33,7 @@ Over HTTP the token is the only credential: browser cookies are never accepted o
 
 | Tool | Does |
 |------|------|
-| `search` | Hybrid keyword and semantic search. Best passage of each note |
+| `search` | `mode`: `keyword`, `meaning`, `hybrid` (default) or `smart` (a language model rewrites the question, infers filters, can rerank, and reports what it understood). Best passages of each note |
 | `read_note` | Frontmatter, Markdown, typed links, linked GitHub issues |
 | `list_notes` | Notes by type, status, space, tag |
 | `graph_neighbors` | Notes linked to a note, by direction, link type and depth |
@@ -41,7 +42,7 @@ Over HTTP the token is the only credential: browser cookies are never accepted o
 | `update_note` | Replace a note. Pass `base_commit` to avoid overwriting someone's edit |
 | `link_notes` | Add a typed link to a note or to `gh:owner/repo#12` |
 | `create_issue` | Open a GitHub issue from a note and link it back |
-| `ask` | A cited answer, or a refusal when nothing supports one |
+| `ask` | A cited answer, or a refusal when nothing supports one. `deep: true` lets the server's model search, read and follow links over several steps and returns the steps |
 
 ## What agents can and cannot do
 

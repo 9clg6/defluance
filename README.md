@@ -15,7 +15,7 @@ Open the address it prints. The first start prints a one-time sign-in link.
 | For | What |
 |-----|------|
 | Product and engineering | Functional specs, technical specs, decisions (ADR), components and glossary as notes, linked by `implements`, `depends_on`, `supersedes`, `tested_by`, `tracked_by`, `blocks`, `related` |
-| Everyone | Search by meaning and keywords, a graph view, history with diffs, an editor that commits, answers with citations |
+| Everyone | Search by words, by meaning (any language) or with a language model in front, a graph view, history with diffs, an editor that commits, answers with citations |
 | GitHub | Issues and pull requests are nodes of the graph. Open an issue from a spec. A merged pull request moves its specs from `approved` to `implemented`. See which specs a pull request touches |
 | AI agents | A [Model Context Protocol](https://modelcontextprotocol.io) server with 10 tools. Agents write drafts on a branch and cannot approve, every action is in the audit log |
 | Operators | One process, SQLite or Postgres, Docker image, Prometheus metrics, no lock-in: delete Defluance and your notes are still plain Markdown in git |
@@ -42,7 +42,8 @@ npx defluance serve ./my-notes         # UI, API and MCP on http://127.0.0.1:400
 
 Then:
 
-- **Ask a question** on the home page. With no language model configured you get the matching passages with sources. Set `DFL_LLM` for written answers.
+- **Ask a question** on the home page. With no language model configured you get the matching passages with sources. Set `DFL_LLM` for written answers, and tick "Research in depth" for questions that span several specs.
+- **Search by meaning**: `npx defluance models install`, then `DFL_EMBED=local`. It runs on your machine. See [Search](docs/guide-search.md).
 - **Connect Claude Code**: Settings, API tokens, create a token, copy the command it shows. See [Agents and MCP](docs/guide-mcp.md).
 - **Connect GitHub**: Settings, GitHub walks you through it. See [GitHub connector](docs/guide-github.md).
 - **Deploy for a team**: [Deployment and operations](docs/guide-deploy.md) (Docker Compose with Postgres).
@@ -53,6 +54,7 @@ The `docs/` folder is itself a Defluance vault, validated in CI.
 
 - [Getting started](docs/guide-getting-started.md)
 - [Vault format](docs/vault-format.md): notes, frontmatter, typed links
+- [Search: words, meaning, smart, in depth](docs/guide-search.md)
 - [Agents and MCP](docs/guide-mcp.md)
 - [GitHub connector](docs/guide-github.md)
 - [Deployment and operations](docs/guide-deploy.md)
@@ -64,7 +66,7 @@ The `docs/` folder is itself a Defluance vault, validated in CI.
 
 | Variable | Purpose |
 |----------|---------|
-| `DFL_EMBED` | `hash` (offline, default), `ollama:<model>`, `openai:<model>`, `openai-compatible:<model>` |
+| `DFL_EMBED` | `hash` (words only, default), `local` (meaning, on your machine), `ollama:<model>`, `openai:<model>`, `openai-compatible:<model>` |
 | `DFL_LLM` | `anthropic:<model>`, `openai:<model>`, `ollama:<model>`, `gateway:<provider/model>`. Unset: answers are the matching passages |
 | `DFL_DATABASE_URL` | Postgres URL. Unset: SQLite in the data folder |
 | `DFL_ADMIN_TOKEN` | A fixed admin token (Docker). Otherwise one is generated on first start |

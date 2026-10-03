@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { hashEmbedder } from "@defluance/shared";
+import { hashEmbedder, type Embedder } from "@defluance/shared";
 import type { Llm } from "@defluance/ai";
 import { createApp } from "./app.js";
 import { createContext, indexNow, jobHandlers, type Ctx } from "./context.js";
@@ -33,7 +33,7 @@ export interface TestServer {
   cleanup(): Promise<void>;
 }
 
-export async function makeServer(o: { files?: Record<string, string>; github?: GithubPort | null | ((ctx: Ctx) => GithubPort); llm?: Llm | null; env?: Record<string, string>; fetch?: typeof fetch; uiDir?: string } = {}): Promise<TestServer> {
+export async function makeServer(o: { files?: Record<string, string>; github?: GithubPort | null | ((ctx: Ctx) => GithubPort); llm?: Llm | null; env?: Record<string, string>; fetch?: typeof fetch; uiDir?: string; embedder?: Embedder } = {}): Promise<TestServer> {
   const root = await mkdtemp(join(tmpdir(), "dfl-srv-"));
   for (const [p, c] of Object.entries(o.files ?? FILES)) {
     await mkdir(dirname(join(root, p)), { recursive: true });
@@ -47,7 +47,7 @@ export async function makeServer(o: { files?: Record<string, string>; github?: G
   const ctx = await createContext({
     root,
     env: { DFL_SESSION_SECRET: "test-secret-test-secret", DFL_PUBLIC_URL: "http://localhost:4000", ...(o.env ?? {}) },
-    embedder: hashEmbedder(),
+    embedder: o.embedder ?? hashEmbedder(),
     llm: o.llm ?? null,
     github: typeof o.github === "function" ? null : (o.github ?? null),
     log: false,

@@ -197,13 +197,14 @@ export class IndexStore {
     return (await this.db.all(sql, params)).map(toNote);
   }
 
-  async counts(): Promise<{ notes: number; chunks: number; edges: number; embedded: number }> {
+  async counts(): Promise<{ notes: number; chunks: number; edges: number; embedded: number; pending: number }> {
     const one = async (sql: string) => Number((await this.db.get<{ c: number | string }>(sql))?.c ?? 0);
     return {
       notes: await one("SELECT COUNT(*) AS c FROM notes"),
       chunks: await one("SELECT COUNT(*) AS c FROM chunks"),
       edges: await one("SELECT COUNT(*) AS c FROM edges"),
       embedded: await one("SELECT COUNT(*) AS c FROM chunks WHERE embedding IS NOT NULL"),
+      pending: await one("SELECT COUNT(*) AS c FROM chunks WHERE embedding IS NULL"),
     };
   }
 
