@@ -1,0 +1,26 @@
+name: eval-rag
+# Nightly: do cited answers still point at the right notes? Runs offline by default.
+# Set the repository variables DFL_EMBED and DFL_LLM (and the matching secrets) to evaluate a real model.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node packages/cli/dist/bin.js eval fixtures/vault-eval/questions.yaml --vault fixtures/vault-eval
+        env:
+          DFL_EMBED: ${{ vars.DFL_EMBED }}
+          DFL_LLM: ${{ vars.DFL_LLM }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

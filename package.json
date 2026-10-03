@@ -11,13 +11,17 @@
     "build": "turbo run build",
     "lint": "eslint .",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "pack:cli": "node scripts/pack-cli.mjs",
+    "bench": "pnpm --filter @defluance/server bench"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.4",
+    "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
     "turbo": "^2.11.7",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.0",
@@ -26,5 +30,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.0",
     "yaml": "^2.9.1"
-  }
+  },
+  "version": "0.1.0"
 }

@@ -1,6 +1,6 @@
 ---
 type: technical-spec
-status: review
+status: implemented
 owner: clement
 tags: [defluance, bmad]
 links:
@@ -598,6 +598,40 @@ Rolling simple : `docker compose pull && up -d`. Migrations Drizzle au démarrag
 - Taille du graphe global dans l'UI : basculer vers Sigma.js si > 500 nœuds affichés.
 
 ---
+
+## Écarts d'implémentation (version 0.1)
+
+Ce que le code fait réellement, quand il diffère du plan ci-dessus. Chaque écart a un plafond connu et un chemin d'évolution.
+
+| Prévu | Réalisé | Pourquoi, plafond, évolution |
+|-------|---------|------------------------------|
+| SQLite via better-sqlite3 + sqlite-vec | `node:sqlite` intégré à Node (22.13 ou plus), FTS5 | Aucune compilation native : le module natif cassait déjà au premier essai. Recherche vectorielle faite en mémoire |
+| pgvector en Postgres | Vecteurs en `BYTEA`, cosinus calculé en mémoire, plein texte `tsvector` | Un seul code de recherche vectorielle pour les deux bases. Plafond : environ 50 000 passages en RAM. Évolution : pgvector ou sqlite-vec derrière `IndexStore` |
+| Graphe par CTE récursives | Arêtes résolues chargées en mémoire, parcours en JavaScript, cache par version d'index | Plus simple, 0,7 ms pour un voisinage de profondeur 2 sur 10 000 notes. Plafond : environ 100 000 arêtes |
+| Package `github` séparé | Module dans `packages/server/src/github` | Il écrit dans le vault, indexe et audite : il partage les services d'écriture. Les échanges avec GitHub passent par `fetch` et `node:crypto`, sans Octokit |
+| Next.js standalone | Export statique servi par le serveur | Un seul processus, un seul port, `npx defluance serve` sans Docker. Les pages de fiche sont rendues côté client (`/n/*` sert une page unique) |
+| Node 24 | Node 22.13 ou plus | Version installée. `node:sqlite` stable sans drapeau à partir de 22.13 |
+| pino | Logs JSON sur stdout, sans dépendance | Même contenu, moins de dépendances |
+| Reranker du RAG | Aucun | Citations validées structurellement : une citation est toujours un passage récupéré. Réponse extractive sans LLM, refus sans source |
+| Une page graphe par type de lien | `react-force-graph-2d`, liste accessible en doublon | Canvas non lisible par un lecteur d'écran |
+
+## Décisions prises à l'implémentation
+
+- **D10. Qui est un agent.** Un appel Bearer sans permission `admin` est un agent : écriture sur branche, brouillons seulement, pas d'approbation. Une session de navigateur ne l'est jamais, même ouverte avec un token, car une personne tient la souris. Un token `admin` agit comme une personne.
+- **D11. Alias de lien.** `[[note|texte]]` dans le corps est un alias d'affichage Obsidian et ne produit qu'un avertissement. Dans le frontmatter structuré (`{ to, type }`), un type inconnu est une erreur. Écart voulu avec FR-003 pour rester compatible avec un vault Obsidian existant.
+- **D12. Champs obligatoires.** `type`, `status`, `owner`. `tags` est optionnel (écart avec FR-002).
+- **D13. Premier démarrage.** Un token admin est créé et affiché une fois (ou `DFL_ADMIN_TOKEN` fixé). La connexion locale passe par ce token, jamais par un accès ouvert.
+- **D14. Options de vault ajoutées.** `derive_status`, `pr_comments`, `vault_repo`, `vault_push` dans `.defluance/config.yaml`.
+- **D15. Même lien dans le frontmatter et le corps.** Compté une fois à l'affichage.
+
+## Mesures (10 000 notes, `pnpm bench`)
+
+| Mesure | Résultat | Limite du PRD |
+|--------|----------|---------------|
+| Indexation complète | 9 s | 10 min |
+| Une note modifiée | 91 ms | 5 s |
+| Recherche hybride, p95 | 29 ms | 300 ms |
+| Lecture d'une fiche, p95 | 11 ms | 100 ms |
 
 ## Hypothèses et contraintes
 

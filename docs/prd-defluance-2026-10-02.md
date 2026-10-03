@@ -1,6 +1,6 @@
 ---
 type: note
-status: review
+status: implemented
 owner: clement
 tags: [defluance, bmad]
 links:
@@ -751,13 +751,13 @@ Stories détaillées en phase 4 (sprint planning).
 
 ## Questions ouvertes
 
-1. Licence : tranchée le 2026-10-03, PolyForm Noncommercial 1.0.0 + licence commerciale payante (LICENSE, COMMERCIAL.md). Reste à définir : tarif, contact, contributor agreement (CLA) pour pouvoir relicencier.
-2. Le vault par défaut vit-il dans le dépôt de code (`docs/`) ou dans un dépôt dédié ? Les deux sont supportés, lequel est documenté en premier ?
-3. Commits des agents : branche + PR systématique, ou commit direct sur `main` autorisé pour les fiches `draft` ?
-4. Bibliothèque de graphe pour l'UI : Sigma.js, react-force-graph ou D3 ?
-5. Éditeur : CodeMirror 6 (markdown) retenu par défaut ?
+Toutes tranchées à l'implémentation.
 
----
+1. Licence : PolyForm Noncommercial 1.0.0 + licence commerciale payante (LICENSE, COMMERCIAL.md). Reste à définir avant la première publication : tarif, contact, accord de contribution (CLA) pour pouvoir relicencier.
+2. Vault : dépôt dédié ou dossier `docs/` d'un dépôt de code, les deux sont supportés. Le `docs/` de Defluance sert de vault et est validé en CI.
+3. Commits des agents : branche par défaut (`agent_write_mode: branch`), jamais d'approbation par un agent. `direct` possible par vault.
+4. Bibliothèque de graphe : `react-force-graph-2d`, avec une liste accessible en doublon.
+5. Éditeur : CodeMirror 6.
 
 ## Approbation
 

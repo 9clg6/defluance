@@ -1,6 +1,6 @@
 ---
 type: note
-status: review
+status: implemented
 owner: clement
 tags: [defluance, bmad]
 links:
@@ -230,7 +230,11 @@ NFR : NFR-001/002 → 041 ; NFR-003 → 017, 022 ; NFR-004 → 004, 008 ; NFR-00
 
 ---
 
-## Prochaines étapes
+## Résultat
+
+Les 42 stories (165 points) sont livrées, y compris les 16 points de Should Have. Sprint 6 inclus : Docker Compose testé avec un vrai Postgres, paquet npm vérifié par installation dans un dossier vierge, benchmarks sous les limites, tests de bout en bout avec contrôle d'accessibilité.
+
+## Prochaines étapes (historique)
 
 Sprint 1 démarre le 2026-10-05. Lancer `/bmad:dev-story STORY-001` puis enchaîner 002 → 005 en parallèle (indépendantes) et 003, 004, 006, 007, 008.
 

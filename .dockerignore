@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.turbo
+**/.next
+apps/web/out
+apps/web/test-results
+dist-npm
+.git
+.claude
+.github
+docs
+fixtures
+*.md
+!README.md
+!COMMERCIAL.md

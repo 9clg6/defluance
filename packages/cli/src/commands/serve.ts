@@ -1,14 +1,20 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { startServer, type RunningServer } from "@defluance/server";
 import type { IO } from "./runtime.js";
 
-/** The exported web UI bundled with the package (`packages/cli/ui`), if built. */
+/**
+ * The exported web UI shipped with the package, if present. Looked up next to the running file:
+ * `ui/` (npm package), `../ui` and `../../ui` (monorepo: dist/ and dist/commands/).
+ */
 export function bundledUi(): string | null {
-  const dir = fileURLToPath(new URL("../../ui", import.meta.url));
-  return existsSync(dir) ? dir : null;
+  for (const rel of ["./ui", "../ui", "../../ui"]) {
+    const dir = fileURLToPath(new URL(rel, import.meta.url));
+    if (existsSync(join(dir, "index.html"))) return dir;
+  }
+  return null;
 }
 
 export interface ServeOptions {

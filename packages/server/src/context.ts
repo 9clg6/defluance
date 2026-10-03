@@ -97,7 +97,7 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
   const root = opts.root;
   if (!existsSync(join(root, ".git"))) await initRepo(root);
 
-  const dataDir = opts.dataDir ?? join(root, ".defluance", "data");
+  const dataDir = opts.dataDir ?? env["DFL_DATA_DIR"] ?? join(root, ".defluance", "data");
   let db: Db;
   const url = env["DFL_DATABASE_URL"];
   if (url) {

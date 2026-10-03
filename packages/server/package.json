@@ -12,7 +12,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "bench": "node bench/run.mjs"
   },
   "dependencies": {
     "@defluance/ai": "workspace:*",

@@ -1,4 +1,4 @@
-import { DatabaseSync, type SQLInputValue, type StatementSync } from "node:sqlite";
+import type { SQLInputValue, StatementSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Pool } from "pg";
@@ -25,7 +25,10 @@ export interface Db {
 
 export function openSqlite(path: string): Db {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
-  const raw = new DatabaseSync(path);
+  // Loaded on demand: `node:sqlite` prints an experimental warning on import, and Postgres mode never needs it.
+  const sqlite = process.getBuiltinModule("node:sqlite") as typeof import("node:sqlite") | undefined;
+  if (!sqlite) throw new Error("SQLite needs Node.js 22.13 or later (node:sqlite). Upgrade Node, or set DFL_DATABASE_URL to use Postgres.");
+  const raw = new sqlite.DatabaseSync(path);
   raw.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;");
   const cache = new Map<string, StatementSync>();
   const stmt = (sql: string) => {
