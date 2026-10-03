@@ -25,15 +25,20 @@ let calls: string[];
 
 beforeEach(() => {
   calls = [];
+  configured = true;
+  linked = true;
+  found = true;
   resetGithubCache();
   vi.stubGlobal("fetch", async (url: string) => {
     calls.push(url);
-    const body = url.includes("/github/status") ? { configured: configured } : { items };
+    const body = url.includes("/github/status") ? { configured, defaultRepos: linked ? ["acme/app"] : [], spaces: [], publicRepos: [] } : { items: found ? items : [] };
     return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
   });
 });
 afterEach(() => vi.unstubAllGlobals());
 let configured = true;
+let linked = true;
+let found = true;
 
 describe("wikilinkSource", () => {
   it("offers link types after a bar, also for a gh: target", async () => {
@@ -62,12 +67,31 @@ describe("mentionSource", () => {
     expect(calls).toEqual([]);
   });
 
-  it("does not ask for items when GitHub is not configured, and asks the status only once", async () => {
+  it("says GitHub is not connected, without asking for items, and asks the status only once", async () => {
     configured = false;
-    expect(await src(at("@"))).toBeNull();
-    expect(await src(at("@fix"))).toBeNull();
+    expect((await src(at("@")))?.options.map((o) => o.label)).toEqual(["GitHub is not connected"]);
+    expect((await src(at("@fix")))?.options).toHaveLength(1);
     expect(calls.filter((c) => c.includes("/status"))).toHaveLength(1);
     expect(calls.filter((c) => c.includes("/items"))).toEqual([]);
+  });
+
+  it("says no repository is linked yet, with a way to Settings for an admin only", async () => {
+    linked = false;
+    const plain = await src(at("@"));
+    expect(plain?.options.map((o) => [o.label, o.detail])).toEqual([["No GitHub repository linked yet: link one in Settings > GitHub", undefined]]);
+    expect(calls.filter((c) => c.includes("/items"))).toEqual([]);
+    let opened = 0;
+    resetGithubCache();
+    const admin = mentionSource(() => EN_LABELS, 0, () => ({ notConnected: "", noRepo: "none linked", noMatch: "", openSettings: { label: "Open Settings", open: () => void opened++ } }));
+    const r = await admin(at("@"));
+    expect(r?.options[0]).toMatchObject({ label: "none linked", detail: "Open Settings" });
+    (r?.options[0]?.apply as () => void)();
+    expect(opened).toBe(1);
+  });
+
+  it("says nothing matches when a repository is linked but the search is empty", async () => {
+    found = false;
+    expect((await src(at("@zzz")))?.options.map((o) => o.label)).toEqual(["No issue or pull request matches"]);
   });
 
   it("caches the same search, and stops when the request was aborted", async () => {

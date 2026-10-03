@@ -260,6 +260,8 @@ export interface GithubStatus {
   repos: string[];
   spaces: { name: string; repos: string[] }[];
   defaultRepos: string[];
+  /** Linked repositories that are synced through the public API, with no App installation. */
+  publicRepos?: string[];
   webhookUrl: string;
   oauth: boolean;
 }

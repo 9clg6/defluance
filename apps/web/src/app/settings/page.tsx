@@ -12,6 +12,7 @@ import { api, errorMessage, qs } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { relativeTime } from "@/lib/frontmatter";
 import { useT } from "@/lib/i18n";
+import { normaliseRepo } from "@/lib/repo";
 import { useToast } from "@/lib/toast";
 import type { GithubStatus, IndexStatus, TokenRow } from "@/lib/types";
 
@@ -288,6 +289,79 @@ function GithubRepos({ s, isAdmin, reload }: { s: GithubStatus; isAdmin: boolean
   );
 }
 
+/** Link a public repository: read through GitHub's public API, no App installation needed. */
+function GithubPublic({ s, isAdmin, reload }: { s: GithubStatus; isAdmin: boolean; reload: () => Promise<void> }) {
+  const { t } = useT();
+  const toast = useToast();
+  const [input, setInput] = useState("");
+  const [space, setSpace] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const publicRepos = s.publicRepos ?? [];
+  const repo = normaliseRepo(input);
+
+  const put = async (r: string, sp: string, linked: boolean) => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await api.put("/api/v1/github/repos", { repo: r, ...(sp ? { space: sp } : {}), linked, ...(linked ? { public: true } : {}) });
+      toast("ok", t(linked ? "gh.linkOk" : "gh.unlinkOk", { repo: r }));
+      if (linked) setInput("");
+      await reload();
+    } catch (e) {
+      setError(`${r}: ${errorMessage(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section aria-labelledby="gh-public-title" className="space-y-3">
+      <h3 id="gh-public-title" className="text-sm font-semibold">{t("gh.public.title")}</h3>
+      <p className="text-sm text-muted-foreground">{t("gh.public.help")}</p>
+      {error && <ErrorBox>{error}</ErrorBox>}
+      {isAdmin && (
+        <form
+          className="flex flex-wrap items-start gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (repo) void put(repo, space, true);
+          }}
+        >
+          <div className="min-w-0 flex-1 basis-64">
+            <Input aria-label={t("gh.public.repo")} placeholder="owner/name" value={input} onChange={(e) => setInput(e.target.value)} aria-invalid={!!input.trim() && !repo} aria-describedby={input.trim() && !repo ? "gh-public-invalid" : undefined} />
+            {input.trim() && !repo && <p id="gh-public-invalid" className="mt-1 text-xs text-destructive">{t("gh.public.invalid")}</p>}
+          </div>
+          <Select aria-label={t("gh.space", { repo: repo ?? "…" })} value={space} onChange={(e) => setSpace(e.target.value)} className="w-56">
+            <option value="">{t("gh.noSpace")}</option>
+            {s.spaces.map((sp) => <option key={sp.name} value={sp.name}>{sp.name}</option>)}
+          </Select>
+          <Button type="submit" disabled={busy || !repo}>{t("gh.link")}</Button>
+        </form>
+      )}
+      {publicRepos.length > 0 && (
+        <ul aria-label={t("gh.public.list")} className="divide-y rounded-[var(--arc-radius-control)] border">
+          {publicRepos.map((r) => {
+            const where = linkedSpaces(s, r);
+            return (
+              <li key={r} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                <code className="font-medium">{r}</code>
+                <Badge tone="primary">{t("gh.public.badge")}</Badge>
+                {where.length > 0 && <Badge tone="success">{t("gh.linked", { spaces: where.map((sp) => sp || t("gh.defaultName")).join(", ") })}</Badge>}
+                {isAdmin && (
+                  <Button variant="outline" size="sm" className="ml-auto" disabled={busy} aria-label={`${t("gh.unlink")} ${r}`} onClick={() => void put(r, where[0] ?? "", false)}>
+                    {t("gh.unlink")}
+                  </Button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function Github() {
   const { t } = useT();
   const { me } = useAuth();
@@ -341,6 +415,7 @@ function Github() {
       </Card>
 
       {s.configured && <GithubRepos s={s} isAdmin={!!me?.spaces.length && me.spaces.every((sp) => sp.perms.includes("admin"))} reload={gh.reload} />}
+      {s.configured && <GithubPublic s={s} isAdmin={!!me?.spaces.length && me.spaces.every((sp) => sp.perms.includes("admin"))} reload={gh.reload} />}
 
       <ol className="space-y-5">
         {step(1, t("gh.s1"), (

@@ -10,9 +10,9 @@ const ITEMS = [
 ];
 
 /** Stub the connector status and the items search. Returns the `items` requests the page made. */
-async function stubGithub(page: Page, configured = true) {
+async function stubGithub(page: Page, configured = true, linked = true) {
   const requests: URL[] = [];
-  await page.route("**/api/v1/github/status", (route) => route.fulfill({ json: { configured, repos: [], spaces: [], defaultRepos: [], webhookUrl: "http://x/webhooks/github", oauth: false } }));
+  await page.route("**/api/v1/github/status", (route) => route.fulfill({ json: { configured, repos: [], spaces: [], defaultRepos: linked ? ["acme/app"] : [], webhookUrl: "http://x/webhooks/github", oauth: false } }));
   await page.route("**/api/v1/github/items?**", (route) => {
     const url = new URL(route.request().url());
     requests.push(url);
@@ -68,7 +68,7 @@ test.describe("@ mentions in the editor", () => {
     await expect(editor).toContainText("[[gh:acme/app#14|tracked_by]]");
   });
 
-  test("an email address does not open it, and nothing is asked when GitHub is not configured", async ({ page }) => {
+  test("an email address does not open it, and when GitHub is not configured nothing is asked: the popup says so", async ({ page }) => {
     const requests = await stubGithub(page);
     await page.goto("/n/tech/glossary/?tab=edit");
     const editor = page.getByRole("textbox", { name: "Markdown editor" });
@@ -86,8 +86,7 @@ test.describe("@ mentions in the editor", () => {
     await ed.click();
     await other.keyboard.press("Control+End");
     await other.keyboard.type("\n\nSee @");
-    await other.waitForTimeout(600);
-    await expect(other.locator(".cm-tooltip-autocomplete")).toHaveCount(0);
+    await expect(other.locator(".cm-tooltip-autocomplete")).toContainText("GitHub is not connected");
     expect(none).toHaveLength(0);
   });
 });

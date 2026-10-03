@@ -1,18 +1,22 @@
 "use client";
 
-import { autocompletion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { markdown } from "@codemirror/lang-markdown";
+import { autocompletion, type CompletionContext, type CompletionResult, startCompletion } from "@codemirror/autocomplete";
+import { defaultKeymap, history, historyKeymap, redo, undo } from "@codemirror/commands";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import * as Y from "yjs";
+import { EditorToolbar, type Panel, type ToolbarActions } from "@/components/EditorToolbar";
 import type { Awareness } from "@/hooks/use-collab";
 import { api, qs, uploadFile } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useT } from "@/lib/i18n";
+import { bodyStart, EN_LIVE, type LiveLabels, livePreview } from "@/lib/live-preview";
+import * as md from "@/lib/markdown-commands";
 import { type GhLabels, ghOption, parseMention } from "@/lib/mention";
 import type { GhNode, NoteSummary, SearchHit } from "@/lib/types";
 
@@ -98,24 +102,31 @@ export function wikilinkSource(linkTypes: string[]) {
   };
 }
 
-let ghConfigured: { at: number; ok: boolean } | undefined;
+/** What the connector says: is it on, and is any repository linked (to a space, the default list, or as a public one). */
+interface GhState {
+  configured: boolean;
+  linked: boolean;
+}
+
+let ghState: { at: number; s: GhState } | undefined;
 const ghCache = new Map<string, { at: number; items: GhNode[] }>();
 
 /** Forget what was fetched (tests). */
 export function resetGithubCache() {
-  ghConfigured = undefined;
+  ghState = undefined;
   ghCache.clear();
 }
 
-/** Is the GitHub connector on? Asked once, then remembered for a minute; a failed call counts as "no" without being remembered. */
-async function githubConfigured(): Promise<boolean> {
-  if (ghConfigured && Date.now() - ghConfigured.at < 60_000) return ghConfigured.ok;
+/** Asked once, then remembered for a minute. Null when the call fails (nothing is remembered). */
+async function githubStatus(): Promise<GhState | null> {
+  if (ghState && Date.now() - ghState.at < 60_000) return ghState.s;
   try {
-    const s = await api.get<{ configured: boolean }>("/api/v1/github/status");
-    ghConfigured = { at: Date.now(), ok: s.configured };
-    return s.configured;
+    const s = await api.get<{ configured: boolean; defaultRepos?: string[]; spaces?: { repos: string[] }[]; publicRepos?: string[] }>("/api/v1/github/status");
+    const linked = !!(s.defaultRepos?.length || s.publicRepos?.length || s.spaces?.some((sp) => sp.repos.length));
+    ghState = { at: Date.now(), s: { configured: s.configured, linked } };
+    return ghState.s;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -128,11 +139,23 @@ async function githubItems(params: { q: string; kind?: GhNode["kind"] | undefine
   return items;
 }
 
+/** What the `@` popup says when there is nothing to pick. */
+export interface MentionNotes {
+  notConnected: string;
+  noRepo: string;
+  noMatch: string;
+  /** Shown beside `noRepo` for an admin, who can act on it: choosing it opens Settings. */
+  openSettings?: { label: string; open: () => void };
+}
+
+const EN_NOTES: MentionNotes = { notConnected: "GitHub is not connected", noRepo: "No GitHub repository linked yet: link one in Settings > GitHub", noMatch: "No issue or pull request matches" };
+
 /**
  * `@` at the start of a line or after a space suggests GitHub issues and pull requests (`@pr`, `@issue`, or words, or a
  * number). Choosing one inserts `[[gh:owner/repo#12]]`: the `[[` completion offers link types after a `|`.
+ * When there is nothing to suggest it says why in one option (GitHub off, no repository linked, no match) instead of staying silent.
  */
-export function mentionSource(labels: () => GhLabels, debounceMs = 200) {
+export function mentionSource(labels: () => GhLabels, debounceMs = 200, notes: () => MentionNotes = () => EN_NOTES) {
   return async (ctx: CompletionContext): Promise<CompletionResult | null> => {
     const line = ctx.state.doc.lineAt(ctx.pos);
     const m = parseMention(line.text.slice(0, ctx.pos - line.from));
@@ -140,16 +163,27 @@ export function mentionSource(labels: () => GhLabels, debounceMs = 200) {
     // One request per pause in typing: the next keystroke aborts this one.
     await new Promise<void>((r) => setTimeout(r, debounceMs));
     if (ctx.aborted) return null;
+    const from = line.from + m.from;
+    const say = (label: string, action?: { label: string; open: () => void }): CompletionResult => ({
+      from,
+      filter: false,
+      options: [{ label, detail: action?.label, type: "info", apply: () => action?.open() }],
+    });
     let items: GhNode[];
     try {
-      if (!(await githubConfigured())) return null;
+      const st = await githubStatus();
+      if (!st) return null;
+      if (ctx.aborted) return null;
+      if (!st.configured) return say(notes().notConnected);
+      if (!st.linked) return say(notes().noRepo, notes().openSettings);
       items = await githubItems(m);
     } catch {
       return null;
     }
-    if (ctx.aborted || !items.length) return null;
+    if (ctx.aborted) return null;
+    if (!items.length) return say(notes().noMatch);
     return {
-      from: line.from + m.from,
+      from,
       filter: false,
       options: items.map((n) => {
         const o = ghOption(n, labels());
@@ -164,18 +198,38 @@ export function mentionSource(labels: () => GhLabels, debounceMs = 200) {
   };
 }
 
-/**
- * `collab` binds the editor to a shared document: remote cursors, and an undo that only undoes your own changes.
- * Without it the editor owns the text after mount, as before.
- */
 /** Files a person can drop or paste into a note: what the server accepts. */
 const attachable = (f: File) => /^image\/(png|jpeg|gif|webp)$|^application\/pdf$/.test(f.type);
 
+const PREVIEW_KEY = "dfl-live-preview";
+/** Live preview is on unless the person turned it off in this browser. */
+function readPreview(): boolean {
+  try {
+    return localStorage.getItem(PREVIEW_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * `collab` binds the editor to a shared document: remote cursors, and an undo that only undoes your own changes.
+ * Without it the editor owns the text after mount, as before. The text is Markdown all the way down: the toolbar and the
+ * live preview only dispatch ordinary transactions and decorations.
+ */
 export function Editor({ value, onChange, onSave, linkTypes, label, collab, readOnly = false, noteId, onError }: { noteId?: string; onError?: (e: unknown) => void; value: string; onChange: (v: string) => void; onSave: () => void; linkTypes: string[]; label: string; collab?: { text: Y.Text; awareness: Awareness }; readOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const { t } = useT();
+  const { me } = useAuth();
+  const isAdmin = !!me?.spaces.some((s) => s.perms.includes("admin"));
   const labelsRef = useRef<GhLabels>({ pr: "PR", issue: "issue", state: (s) => s });
   labelsRef.current = { pr: t("gh.pr"), issue: t("gh.issue"), state: (s) => t(`gh.${s}`) };
+  const notesRef = useRef<MentionNotes>({ notConnected: "", noRepo: "", noMatch: "" });
+  notesRef.current = {
+    notConnected: t("gh.mention.notConnected"),
+    noRepo: t("gh.mention.noRepo"),
+    noMatch: t("gh.mention.noMatch"),
+    ...(isAdmin ? { openSettings: { label: t("gh.mention.open"), open: () => void window.open("/settings/?tab=github", "_blank", "noopener") } } : {}),
+  };
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   onChangeRef.current = onChange;
@@ -184,6 +238,95 @@ export function Editor({ value, onChange, onSave, linkTypes, label, collab, read
   const errorRef = useRef(onError);
   noteRef.current = noteId;
   errorRef.current = onError;
+
+  const [view, setView] = useState<EditorView | null>(null);
+  const [active, setActive] = useState("");
+  const [panel, setPanel] = useState<Panel>(null);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [preview, setPreviewState] = useState(readPreview);
+  const previewRef = useRef(preview);
+  const previewSlot = useRef(new Compartment());
+  const panelRef = useRef(setPanel);
+  const textLabels = useRef<LiveLabels>(EN_LIVE);
+  textLabels.current = { properties: (n) => t("editor.properties", { n }), propertiesOpen: (n) => t("editor.propertiesOpen", { n }), task: t("editor.task") };
+  const collabRef = useRef(!!collab);
+
+  const setPreview = useCallback((on: boolean) => {
+    previewRef.current = on;
+    setPreviewState(on);
+    try {
+      localStorage.setItem(PREVIEW_KEY, on ? "on" : "off");
+    } catch {
+      // the choice lasts for this page only
+    }
+  }, []);
+
+  // Turning the preview on or off swaps one extension; the document, selection and history are untouched.
+  useEffect(() => {
+    view?.dispatch({ effects: previewSlot.current.reconfigure(preview ? livePreview(() => textLabels.current) : []) });
+  }, [view, preview]);
+
+  /** Run a formatting command on the editor: one ordinary transaction. */
+  const run = useCallback((cmd: md.Command) => {
+    const v = viewRef.current;
+    if (!v || v.state.readOnly) return false;
+    v.dispatch({ ...cmd(v.state), scrollIntoView: true });
+    v.focus();
+    return true;
+  }, []);
+  const viewRef = useRef<EditorView | null>(null);
+  viewRef.current = view;
+
+  const actions = useMemo<ToolbarActions>(() => {
+    const ph = {
+      bold: t("editor.ph.bold"),
+      italic: t("editor.ph.italic"),
+      strike: t("editor.ph.strike"),
+      code: t("editor.ph.code"),
+    };
+    return {
+      bold: () => run(md.toggleInline("bold", ph.bold)),
+      italic: () => run(md.toggleInline("italic", ph.italic)),
+      strike: () => run(md.toggleInline("strike", ph.strike)),
+      code: () => run(md.toggleInline("code", ph.code)),
+      heading: (n) => run(md.setHeading(n)),
+      bullets: () => run(md.toggleList("bullet")),
+      numbers: () => run(md.toggleList("numbered")),
+      checklist: () => run(md.toggleList("task")),
+      quote: () => run(md.toggleQuote),
+      codeBlock: () => run(md.toggleCodeBlock(t("editor.ph.code"))),
+      table: () => run(md.insertTable),
+      rule: () => run(md.insertRule),
+      callout: (type) => run(md.insertCallout(type, t("editor.ph.title"))),
+      mention: () => {
+        if (run(md.insertMentionTrigger) && viewRef.current) startCompletion(viewRef.current);
+      },
+      undo: () => {
+        const v = viewRef.current;
+        if (!v) return;
+        if (collabRef.current) yUndoManagerKeymap.find((k) => k.key === "Mod-z")?.run?.(v);
+        else undo(v);
+        v.focus();
+      },
+      redo: () => {
+        const v = viewRef.current;
+        if (!v) return;
+        if (collabRef.current) yUndoManagerKeymap.find((k) => k.key === "Mod-Shift-z")?.run?.(v);
+        else redo(v);
+        v.focus();
+      },
+      link: (url) => run(md.insertLink(url, t("editor.ph.link"))),
+      noteLink: (id, type) => run(md.insertNoteLink(id, type)),
+      upload: (file) => {
+        const note = noteRef.current;
+        if (!note || !attachable(file)) return;
+        void uploadFile(note, file).then(
+          (up) => run(md.insertText(`${up.markdown}\n`)),
+          (err) => errorRef.current?.(err),
+        );
+      },
+    };
+  }, [run, t]);
 
   useEffect(() => {
     if (!host.current) return;
@@ -206,40 +349,85 @@ export function Editor({ value, onChange, onSave, linkTypes, label, collab, read
       })();
       return true;
     };
-    const view = new EditorView({
+    const fmt = (cmd: md.Command) => () => run(cmd);
+    const doc = collab ? collab.text.toString() : value;
+    const v = new EditorView({
       parent: host.current,
       state: EditorState.create({
-        doc: collab ? collab.text.toString() : value,
+        doc,
+        // With the preview on, open with the cursor below the frontmatter, so it starts collapsed.
+        ...(previewRef.current ? { selection: EditorSelection.cursor(bodyStart(EditorState.create({ doc }))) } : {}),
         extensions: [
           lineNumbers(),
           ...(collab ? [yCollab(collab.text, collab.awareness, { undoManager: new Y.UndoManager(collab.text) })] : [history()]),
           ...(readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),
           drawSelection(),
           highlightActiveLine(),
-          markdown(),
+          markdown({ base: markdownLanguage }),
           syntaxHighlighting(highlight),
           EditorView.lineWrapping,
+          previewSlot.current.of(previewRef.current ? livePreview(() => textLabels.current) : []),
           EditorView.domEventHandlers({
             paste: (e, view) => takeFiles(e.clipboardData?.files, e, view),
             drop: (e, view) => takeFiles(e.dataTransfer?.files, e, view),
           }),
-          autocompletion({ override: [wikilinkSource(linkTypes), mentionSource(() => labelsRef.current)] }),
+          autocompletion({ override: [wikilinkSource(linkTypes), mentionSource(() => labelsRef.current, 200, () => notesRef.current)] }),
           keymap.of([
             { key: "Mod-s", preventDefault: true, run: () => (onSaveRef.current(), true) },
+            { key: "Mod-b", run: fmt(md.toggleInline("bold")), preventDefault: true },
+            { key: "Mod-i", run: fmt(md.toggleInline("italic")), preventDefault: true },
+            { key: "Mod-e", run: fmt(md.toggleInline("code")), preventDefault: true },
+            { key: "Mod-Shift-x", run: fmt(md.toggleInline("strike")), preventDefault: true },
+            { key: "Mod-k", run: (view) => (setLinkUrl(md.linkUrlAt(view.state)), panelRef.current("link"), true), preventDefault: true },
+            { key: "Mod-Alt-1", run: fmt(md.setHeading(1)), preventDefault: true },
+            { key: "Mod-Alt-2", run: fmt(md.setHeading(2)), preventDefault: true },
+            { key: "Mod-Alt-3", run: fmt(md.setHeading(3)), preventDefault: true },
+            { key: "Mod-Shift-7", run: fmt(md.toggleList("numbered")), preventDefault: true },
+            { key: "Mod-Shift-8", run: fmt(md.toggleList("bullet")), preventDefault: true },
+            { key: "Mod-Shift-9", run: fmt(md.toggleList("task")), preventDefault: true },
             ...defaultKeymap,
             ...(collab ? yUndoManagerKeymap : historyKeymap),
           ]),
           EditorView.contentAttributes.of({ "aria-label": label, "aria-multiline": "true" }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) onChangeRef.current(u.state.doc.toString());
+            if (u.docChanged || u.selectionSet) setActive([...md.activeFormats(u.state)].sort().join(","));
           }),
         ],
       }),
     });
-    return () => view.destroy();
+    setView(v);
+    return () => {
+      v.destroy();
+      setView(null);
+    };
     // The editor owns the text after mount: remount with a new `key` to load other content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <div ref={host} className="min-h-[24rem]" />;
+  const suggest = useCallback((q: string) => suggestNotes(q), []);
+  const formats = useMemo(() => new Set(active ? (active.split(",") as md.Format[]) : []), [active]);
+
+  return (
+    <div className="min-w-0">
+      <EditorToolbar
+        active={formats}
+        disabled={readOnly}
+        actions={actions}
+        panel={panel}
+        setPanel={(p) => {
+          if (p === "link" && view) setLinkUrl(md.linkUrlAt(view.state));
+          setPanel(p);
+        }}
+        linkUrl={linkUrl}
+        preview={preview}
+        setPreview={setPreview}
+        suggest={suggest}
+        linkTypes={linkTypes}
+        canUpload={!!noteId}
+      />
+      <div ref={host} className="min-h-[24rem]" />
+      <p className="mt-1.5 text-xs text-muted-foreground">{t("editor.hint")}</p>
+    </div>
+  );
 }

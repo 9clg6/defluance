@@ -140,6 +140,8 @@ export function Markdown({ source, links, noteId }: { source: string; links: Lin
         if (isValidElement(only) && only.type === Mermaid) return <>{children}</>;
         return <pre>{children}</pre>;
       },
+      // A task list item in the preview: a read-only checkbox that screen readers can name.
+      input: ({ type, checked, disabled }) => <input type={type} checked={checked} disabled={disabled} readOnly aria-label={type === "checkbox" ? t("editor.task") : undefined} />,
       img: ({ src, alt, width }) => <Picture noteId={noteId} src={typeof src === "string" ? src : undefined} alt={alt ?? ""} width={width} />,
       video: ({ src, ...p }) => <video {...p} src={typeof src === "string" && noteId ? resolveAttachment(noteId, src).primary : typeof src === "string" ? src : undefined} />,
       audio: ({ src, ...p }) => <audio {...p} src={typeof src === "string" && noteId ? resolveAttachment(noteId, src).primary : typeof src === "string" ? src : undefined} />,

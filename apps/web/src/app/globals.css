@@ -209,3 +209,111 @@ mark {
 .cm-cursor { border-left-color: var(--foreground); }
 .cm-tooltip { background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 0.5rem; }
 .cm-tooltip-autocomplete ul li[aria-selected] { background: var(--primary); color: var(--primary-foreground); }
+
+/* Editor toolbar: icon buttons with a tooltip that also shows on keyboard focus. Active formats are pressed. */
+.dfl-tb-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  height: 2rem;
+  min-width: 2rem;
+  padding: 0 0.4rem;
+  border-radius: 0.4rem;
+  color: var(--foreground);
+}
+.dfl-tb-btn:hover:not(:disabled) { background: var(--accent); }
+.dfl-tb-btn[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); }
+.dfl-tb-btn:disabled { opacity: 0.4; }
+.dfl-tb-btn::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: max-content;
+  max-width: 14rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  background: var(--foreground);
+  color: var(--background);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  pointer-events: none;
+  /* not rendered until shown: a hidden tooltip at the edge would still widen the page */
+  display: none;
+}
+.dfl-tb-btn:hover::after, .dfl-tb-btn:focus-visible::after { display: block; }
+/* Phones have no hover and the bubble could stick out of the screen: the buttons keep their accessible names. */
+@media (max-width: 640px) { .dfl-tb-btn::after { display: none !important; } }
+
+/*
+ * Live preview: the text looks like the finished note and the Markdown marks are hidden, except on the lines the cursor
+ * is on. Sizes live on the lines so typing never moves anything. Colours are the same neutrals and blue as the rest.
+ */
+.cm-live .cm-gutters { display: none; }
+.cm-live .cm-content { font-family: var(--font-sans); font-size: 1rem; line-height: 1.7; padding: 0.75rem 0.5rem; }
+.cm-live .cm-line { padding: 0 0.25rem; }
+.cm-live .cm-activeLine { background: transparent; }
+.cm-live .cm-lp-h1 { font-size: 1.75rem; font-weight: 650; line-height: 1.3; letter-spacing: -0.015em; }
+.cm-live .cm-lp-h2 { font-size: 1.35rem; font-weight: 650; line-height: 1.35; letter-spacing: -0.015em; }
+.cm-live .cm-lp-h3 { font-size: 1.1rem; font-weight: 650; line-height: 1.4; }
+.cm-live .cm-lp-strong { font-weight: 700; }
+.cm-live .cm-lp-em { font-style: italic; }
+.cm-live .cm-lp-strike { text-decoration: line-through; color: var(--muted-foreground); }
+.cm-live .cm-lp-code-inline, .cm-live .cm-lp-code { font-family: var(--font-mono); font-size: 0.875em; }
+.cm-live .cm-lp-code-inline { background: var(--muted); padding: 0.1em 0.3em; border-radius: 0.3em; }
+.cm-live .cm-lp-link, .cm-live .cm-lp-wikilink { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.cm-live .cm-lp-embed { color: var(--muted-foreground); font-style: italic; }
+.cm-live .cm-lp-quote { border-left: 3px solid var(--border); padding-left: 1rem; color: var(--muted-foreground); }
+.cm-live .cm-lp-bullet { display: inline-block; width: 1.1em; color: var(--muted-foreground); text-align: center; }
+.cm-live .cm-lp-ol { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.cm-live .cm-lp-check { margin: 0 0.45em 0 0; vertical-align: middle; accent-color: var(--primary); cursor: pointer; }
+.cm-live .cm-lp-done { text-decoration: line-through; color: var(--muted-foreground); }
+.cm-live .cm-lp-hr { border-bottom: 1px solid var(--border); }
+.cm-live .cm-lp-code { background: var(--muted); padding-left: 0.75rem; padding-right: 0.75rem; }
+.cm-live .cm-lp-code-first { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); padding-top: 0.2rem; }
+.cm-live .cm-lp-code-last { border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); padding-bottom: 0.2rem; }
+.cm-live .cm-lp-code-info { color: var(--muted-foreground); }
+.cm-live .cm-lp-table { font-family: var(--font-mono); font-size: 0.875em; }
+.cm-live .cm-lp-chip {
+  display: inline-block;
+  padding: 0 0.45em;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--primary);
+  font-size: 0.8em;
+  font-weight: 600;
+}
+.cm-live .cm-lp-fm { background: var(--muted); font-family: var(--font-mono); font-size: 0.85em; color: var(--muted-foreground); }
+.cm-lp-props {
+  display: flex;
+  align-items: center;
+  height: 2rem;
+  margin: 0.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font: 600 0.8rem var(--font-sans);
+  cursor: pointer;
+}
+.cm-lp-props:hover { color: var(--foreground); }
+
+/* Callouts in the editor: the same coloured edge as the rendered ones */
+.cm-live .cm-lp-callout { --callout: var(--primary); border-left: 4px solid var(--callout); background: var(--card); padding-left: 1rem; }
+.cm-live .cm-lp-callout-first { border-top-right-radius: var(--radius); font-weight: 600; }
+.cm-live .cm-lp-callout-kind { color: var(--muted-foreground); text-transform: uppercase; font-size: 0.75em; letter-spacing: 0.04em; }
+.cm-live .cm-lp-callout-tip, .cm-live .cm-lp-callout-success, .cm-live .cm-lp-callout-check, .cm-live .cm-lp-callout-done { --callout: var(--success); }
+.cm-live .cm-lp-callout-warning, .cm-live .cm-lp-callout-caution, .cm-live .cm-lp-callout-attention { --callout: var(--warning-solid); }
+.cm-live .cm-lp-callout-danger, .cm-live .cm-lp-callout-error, .cm-live .cm-lp-callout-failure, .cm-live .cm-lp-callout-fail, .cm-live .cm-lp-callout-bug, .cm-live .cm-lp-callout-missing { --callout: var(--destructive); }
+.cm-live .cm-lp-callout-question, .cm-live .cm-lp-callout-help, .cm-live .cm-lp-callout-faq { --callout: #0d9488; }
+.cm-live .cm-lp-callout-example { --callout: #ea580c; }
+.cm-live .cm-lp-callout-quote, .cm-live .cm-lp-callout-cite { --callout: var(--muted-foreground); }
+
+/* The `@` popup's message options (GitHub off, no repository, no match) read as information, not as a choice */
+.cm-tooltip-autocomplete ul li:has(.cm-completionIcon-info) { font-style: italic; }
+.cm-tooltip-autocomplete ul li[aria-selected]:has(.cm-completionIcon-info) { background: transparent; color: var(--foreground); }
+.cm-completionIcon-info { display: none !important; }
