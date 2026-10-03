@@ -178,7 +178,7 @@ export class IndexStore {
     return (await this.db.all("SELECT * FROM notes ORDER BY id")).map(toNote);
   }
 
-  async listNotes(f: NoteFilter & { limit?: number; after?: string }): Promise<NoteRow[]> {
+  async listNotes(f: NoteFilter & { limit?: number | undefined; after?: string | undefined }): Promise<NoteRow[]> {
     const w = noteWhere(f);
     const sql = `SELECT n.* FROM notes n WHERE 1 = 1${w.sql}${f.after ? " AND n.id > ?" : ""} ORDER BY n.id LIMIT ?`;
     const params: (string | number)[] = [...w.params];

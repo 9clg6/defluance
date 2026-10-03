@@ -1,3 +1,4 @@
+import type { ParsedNote } from "./parse.js";
 import { BASE_REQUIRED, type Schema } from "./schema.js";
 import type { Vault } from "./vault.js";
 
@@ -7,6 +8,45 @@ export interface Diagnostic {
   severity: "error" | "warning";
   rule: string;
   message: string;
+}
+
+/** Frontmatter checks that need no other note: required fields, type, status, tags. */
+export function validateFields(note: ParsedNote, schema: Schema): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const add = (severity: Diagnostic["severity"], rule: string, message: string, line = 1) =>
+    out.push({ file: note.path, line, severity, rule, message });
+  const fm = note.frontmatter;
+
+  if (note.frontmatterError) add("error", "frontmatter-invalid", note.frontmatterError);
+
+  for (const key of BASE_REQUIRED) {
+    if (fm[key] === undefined || fm[key] === null || fm[key] === "") {
+      add("error", "missing-field", `missing required field "${key}"`);
+    }
+  }
+
+  const type = fm["type"];
+  if (typeof type === "string") {
+    const def = schema.types[type];
+    if (!def) {
+      add("error", "unknown-type", `unknown note type "${type}" (known: ${Object.keys(schema.types).join(", ")})`);
+    } else {
+      for (const key of def.required) {
+        if (fm[key] === undefined) add("error", "missing-field", `type "${type}" requires field "${key}"`);
+      }
+    }
+  }
+
+  const status = fm["status"];
+  if (typeof status === "string" && !schema.statuses.includes(status)) {
+    add("error", "invalid-status", `invalid status "${status}" (allowed: ${schema.statuses.join(", ")})`);
+  }
+
+  const tags = fm["tags"];
+  if (tags !== undefined && !(Array.isArray(tags) && tags.every((t) => typeof t === "string"))) {
+    add("error", "invalid-tags", `"tags" must be a list of strings`);
+  }
+  return out;
 }
 
 export function validateVault(vault: Vault, schema: Schema): Diagnostic[] {
@@ -27,37 +67,7 @@ export function validateVault(vault: Vault, schema: Schema): Diagnostic[] {
   for (const { note, links } of resolved) {
     const add = (severity: Diagnostic["severity"], rule: string, message: string, line = 1) =>
       out.push({ file: note.path, line, severity, rule, message });
-    const fm = note.frontmatter;
-
-    if (note.frontmatterError) add("error", "frontmatter-invalid", note.frontmatterError);
-
-    for (const key of BASE_REQUIRED) {
-      if (fm[key] === undefined || fm[key] === null || fm[key] === "") {
-        add("error", "missing-field", `missing required field "${key}"`);
-      }
-    }
-
-    const type = fm["type"];
-    if (typeof type === "string") {
-      const def = schema.types[type];
-      if (!def) {
-        add("error", "unknown-type", `unknown note type "${type}" (known: ${Object.keys(schema.types).join(", ")})`);
-      } else {
-        for (const key of def.required) {
-          if (fm[key] === undefined) add("error", "missing-field", `type "${type}" requires field "${key}"`);
-        }
-      }
-    }
-
-    const status = fm["status"];
-    if (typeof status === "string" && !schema.statuses.includes(status)) {
-      add("error", "invalid-status", `invalid status "${status}" (allowed: ${schema.statuses.join(", ")})`);
-    }
-
-    const tags = fm["tags"];
-    if (tags !== undefined && !(Array.isArray(tags) && tags.every((t) => typeof t === "string"))) {
-      add("error", "invalid-tags", `"tags" must be a list of strings`);
-    }
+    for (const d of validateFields(note, schema)) out.push(d);
 
     for (const { link, res } of links) {
       if (link.unknownType) {

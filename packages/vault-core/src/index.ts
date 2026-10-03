@@ -5,3 +5,4 @@ export * from "./validate.js";
 export * from "./templates.js";
 export * from "./git.js";
 export * from "./config.js";
+export * from "./frontmatter.js";
