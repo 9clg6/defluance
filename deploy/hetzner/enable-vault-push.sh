@@ -21,6 +21,7 @@ if ! grep -q '^vault_push:' vault/.defluance/config.yaml; then
   printf '\nvault_push: true   # every commit is sent to origin (off-server backup)\n' >> vault/.defluance/config.yaml
   git add .defluance/config.yaml; git -c user.name=Defluance -c user.email=defluance@localhost commit -qm "enable vault_push"
 fi
+chown -R 1000:1000 vault   # the commit above ran as root: the container user must keep owning the whole repository
 GIT_SSH_COMMAND='ssh -i /opt/defluance/ssh/id_ed25519 -o UserKnownHostsFile=/opt/defluance/ssh/known_hosts -o IdentitiesOnly=yes' git push -u origin HEAD
 docker compose up -d --build defluance >/dev/null 2>&1
 echo "vault_push enabled: $(git rev-parse --short HEAD) is on $repo"
