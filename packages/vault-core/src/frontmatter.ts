@@ -2,8 +2,16 @@ import { stringify } from "yaml";
 
 const FM = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
-/** Scalar as YAML text: `approved`, `"needs: quoting"`. */
-const scalar = (v: string) => stringify(v).trim();
+/**
+ * Scalar as YAML text: `approved`, `"needs: quoting"`.
+ * A block or folded scalar (multi-line, or a long line the library wraps) is unindented when stringified alone, which
+ * breaks the file once it follows `key: `; and `trim()` would also eat a leading or trailing no-break space. Both fall
+ * back to a double-quoted scalar: JSON is valid YAML.
+ */
+const scalar = (v: string) => {
+  const y = stringify(v, { lineWidth: 0 }).replace(/\n$/, "");
+  return y === "" || /[\n\r]/.test(y) || y !== y.trim() ? JSON.stringify(v) : y;
+};
 
 function split(raw: string): { lines: string[]; rest: string; eol: string } {
   const m = FM.exec(raw);

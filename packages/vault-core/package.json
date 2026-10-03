@@ -23,6 +23,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@types/mdast": "^4.0.4"
+    "@types/mdast": "^4.0.4",
+    "fast-check": "^4.10.2"
   }
 }

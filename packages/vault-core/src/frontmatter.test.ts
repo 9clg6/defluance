@@ -1,3 +1,4 @@
+import { parse as parseYaml } from "yaml";
 import { describe, expect, it } from "vitest";
 import { parseNote } from "./parse.js";
 import { addFrontmatterLink, setFrontmatterField } from "./frontmatter.js";
@@ -47,5 +48,29 @@ describe("addFrontmatterLink", () => {
   });
   it("refuses an inline list it cannot edit safely", () => {
     expect(() => addFrontmatterLink(doc('links: ["[[a]]"]'), "b", "related")).toThrow(/unsupported/);
+  });
+});
+
+describe("setFrontmatterField with awkward values (found by property tests)", () => {
+  const raw = "---\ntype: note\nstatus: draft\nowner: ana\n---\n# T\n";
+  const read = (r: string) => parseYaml(/^---\n([\s\S]*?)\n---/.exec(r)?.[1] ?? "") as Record<string, unknown>;
+
+  it("keeps a multi-line value valid instead of corrupting the note", () => {
+    expect(read(setFrontmatterField(raw, "summary", "first line\nsecond line"))["summary"]).toBe("first line\nsecond line");
+  });
+
+  it("keeps a long value valid instead of letting the library fold it across unindented lines", () => {
+    const long = Array.from({ length: 40 }, (_, i) => `word${i}`).join(" ");
+    const out = setFrontmatterField(raw, "title", long);
+    expect(read(out)["title"]).toBe(long);
+    expect(out).toContain(`title: ${long}`);
+  });
+
+  it("does not lose a value made of a no-break space", () => {
+    expect(read(setFrontmatterField(raw, "note", " "))["note"]).toBe(" ");
+  });
+
+  it("still writes plain scalars plainly", () => {
+    expect(setFrontmatterField(raw, "status", "approved")).toContain("\nstatus: approved\n");
   });
 });

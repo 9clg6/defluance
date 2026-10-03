@@ -62,9 +62,15 @@ export function chunkBody(body: string, title: string): Chunk[] {
     }
   }
   const chunks: Chunk[] = [];
-  for (const s of sections) {
-    const text = plainLinks(s.lines.join("\n")).trim();
-    if (!text) continue;
+  for (const [i, s] of sections.entries()) {
+    let text = plainLinks(s.lines.join("\n")).trim();
+    if (!text) {
+      // An empty section still says something ("Open questions", a TODO outline). A heading that only introduces
+      // sub-headings is already carried by their paths; a leaf heading would otherwise vanish from search.
+      const parent = sections[i + 1]?.heading.startsWith(`${s.heading} > `);
+      if (i === 0 || parent) continue;
+      text = s.heading;
+    }
     for (const part of splitLong(text)) {
       chunks.push({ heading: s.heading, ordinal: chunks.length, content: part, hash: sha256(`${s.heading}\n${part}`) });
     }

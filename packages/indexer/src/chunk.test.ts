@@ -37,3 +37,16 @@ describe("chunkBody", () => {
     expect(chunkBody("", "T")).toEqual([]);
   });
 });
+
+describe("empty sections (found by property tests)", () => {
+  it("keeps a leaf heading searchable even when nothing is written under it", () => {
+    const chunks = chunkBody("Intro.\n\n## Open questions\n\n## Rollout\n\nShip it.", "Doc");
+    expect(chunks.map((c) => c.heading)).toEqual(["Doc", "Open questions", "Rollout"]);
+    expect(chunks[1]?.content).toBe("Open questions");
+  });
+
+  it("does not repeat a heading that only introduces sub-headings", () => {
+    const chunks = chunkBody("## Parent\n\n### Child\n\nText.", "Doc");
+    expect(chunks.map((c) => c.heading)).toEqual(["Parent > Child"]);
+  });
+});
