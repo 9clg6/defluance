@@ -1,3 +1,4 @@
+import { PORT } from "../playwright.config";
 import { expect, test } from "@playwright/test";
 import { expectAccessible, signIn, TOKEN } from "./helpers";
 
@@ -299,7 +300,7 @@ test.describe("preferences and small screens", () => {
   });
 
   test("honours reduced motion", async ({ browser }) => {
-    const ctx = await browser.newContext({ reducedMotion: "reduce", baseURL: "http://127.0.0.1:4010" });
+    const ctx = await browser.newContext({ reducedMotion: "reduce", baseURL: `http://127.0.0.1:${PORT}` });
     const page = await ctx.newPage();
     await signIn(page);
     const transform = await page.evaluate(() => getComputedStyle(document.querySelector(".obsidian-draggable-marquee > div") ?? document.body).transform);

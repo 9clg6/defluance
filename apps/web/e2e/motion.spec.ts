@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { PORT } from "../playwright.config";
 import { signIn } from "./helpers";
 
 /** Opacity and transform of the open dialog, once per frame for 700 ms. Must be started before the click. */
@@ -42,7 +43,7 @@ test.describe("dialog motion", () => {
   });
 
   test("with reduced motion the dialog fades but does not scale or slide", async ({ browser }) => {
-    const ctx = await browser.newContext({ reducedMotion: "reduce", baseURL: "http://127.0.0.1:4010" });
+    const ctx = await browser.newContext({ reducedMotion: "reduce", baseURL: `http://127.0.0.1:${PORT}` });
     const page = await ctx.newPage();
     await signIn(page);
     const sampled = sampleDialog(page);

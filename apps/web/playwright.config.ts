@@ -5,9 +5,10 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "@playwright/test";
 
-const PORT = 4010;
+/** E2E_PORT lets two checkouts run the suite at the same time. */
+export const PORT = Number(process.env["E2E_PORT"] ?? 4010);
 export const TOKEN = "dfl_e2e_token_for_tests";
-const vault = join(tmpdir(), "dfl-e2e-vault");
+const vault = join(tmpdir(), `dfl-e2e-vault-${PORT}`);
 
 // Workers re-evaluate this file: only the runner prepares the vault, or it would be wiped under the server.
 if (process.env["TEST_WORKER_INDEX"] === undefined) {
