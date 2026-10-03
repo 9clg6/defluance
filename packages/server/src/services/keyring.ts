@@ -25,7 +25,7 @@ export async function unlockKey(ctx: Ctx, actor: Actor, fp: string, passphrase: 
     return status;
   } catch (e) {
     // Wrong guesses are part of the record; the passphrase itself never is.
-    if (e instanceof HttpError && (e.status === 401 || e.status === 429)) await audit(ctx, actor, "key.unlock.failed", fp, { status: e.status });
+    if (e instanceof HttpError && (e.status === 403 || e.status === 429)) await audit(ctx, actor, "key.unlock.failed", fp, { status: e.status });
     throw e;
   }
 }

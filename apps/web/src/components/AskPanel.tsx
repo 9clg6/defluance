@@ -94,7 +94,7 @@ export function AskPanel({ scopeNote, initialQuestion, initialDeep }: { scopeNot
           ) : (
             <>
               <p className="whitespace-pre-wrap leading-relaxed">{withMarkers(result.answer)}</p>
-              {result.mode === "extractive" && <p className="text-xs text-muted-foreground">{t("ask.extractive")}</p>}
+              {result.llmWithheld ? <p className="text-xs text-muted-foreground">{t("private.llmWithheld")}</p> : result.mode === "extractive" && <p className="text-xs text-muted-foreground">{t("ask.extractive")}</p>}
               {result.mode === "deep" && <p className="text-xs text-muted-foreground">{t("ask.deepAnswer")}</p>}
               <ol className="space-y-2" aria-label={t("ask.sources")}>
                 {result.citations.map((c) => (

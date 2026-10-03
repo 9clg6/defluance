@@ -125,7 +125,8 @@ export class KeyService {
     } catch (e) {
       if (!(e instanceof WrongPassphraseError)) throw e;
       this.failures.set(id, { count: (cur?.count ?? 0) + 1, first: cur?.first ?? now });
-      throw new HttpError(401, "wrong passphrase");
+      // 403, not 401: the person is signed in, and a 401 makes the UI treat the session as expired
+      throw new HttpError(403, "wrong passphrase");
     }
     this.failures.delete(id);
     this.hold(holder, row, key);

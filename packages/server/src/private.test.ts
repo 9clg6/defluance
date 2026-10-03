@@ -44,7 +44,7 @@ describe("keys", () => {
 
   it("unlocks with the right passphrase, refuses a wrong one, and locks out after five", async () => {
     const wrong = await unlock(alice, "not the passphrase");
-    expect(wrong.status).toBe(401);
+    expect(wrong.status).toBe(403);
     expect((await unlock()).body).toMatchObject({ fp: alice, unlocked: true });
     expect((await call("GET", "/api/v1/keys")).body.mine[0].unlocked).toBe(true);
     await lock();
@@ -53,7 +53,7 @@ describe("keys", () => {
     const t2 = await makeServer();
     try {
       const k = (await t2.call("POST", "/api/v1/keys", { body: { label: "k", passphrase: PASS } })).body.fp;
-      for (let i = 0; i < 5; i++) expect((await t2.call("POST", `/api/v1/keys/${k}/unlock`, { body: { passphrase: `wrong ${i} wrong` } })).status).toBe(401);
+      for (let i = 0; i < 5; i++) expect((await t2.call("POST", `/api/v1/keys/${k}/unlock`, { body: { passphrase: `wrong ${i} wrong` } })).status).toBe(403);
       const locked = await t2.call("POST", `/api/v1/keys/${k}/unlock`, { body: { passphrase: PASS } });
       expect(locked.status).toBe(429);
       expect(locked.body.retry_after).toBeGreaterThan(0);
@@ -186,7 +186,7 @@ describe("private notes", () => {
     expect(Object.keys((await call("GET", `${path}/links`)).body.outgoing)).toEqual(expect.arrayContaining(["depends_on", "related"]));
     const hist = (await call("GET", `${path}/history`)).body;
     const patch = await call("GET", `${path}/history?diff=${hist.commits[0].hash}`);
-    expect(patch.body).toMatchObject({ patch: null, private: true });
+    expect(patch.body).toMatchObject({ patch: "", private: true });
     expect(s.git("log", "--format=%s", "--", `${id}.md`)).not.toMatch(/zebrafish|acquisition|board/i);
   });
 

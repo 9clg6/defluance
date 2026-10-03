@@ -17,3 +17,4 @@ apps/web/next-env.d.ts
 packages/cli/ui
 packages/cli/bundle
 dist-npm
+.claude/worktrees/

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Dialog, DialogContent, ErrorBox, Field, Input, Select } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
+import { useKeys } from "@/hooks/use-keys";
 import { api, errorMessage, notePath } from "@/lib/api";
 import { slugFromTitle } from "@/lib/frontmatter";
 import { useT } from "@/lib/i18n";
@@ -19,8 +20,13 @@ export function CreateNote({ open, onOpenChange, initialTitle }: { open: boolean
   const [title, setTitle] = useState(initialTitle ?? "");
   const [type, setType] = useState("note");
   const [folder, setFolder] = useState("");
+  const keys = useKeys(open);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [extra, setExtra] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const hasKey = (keys.data?.mine.length ?? 0) > 0;
+  const others = (keys.data?.keyring ?? []).filter((k) => !keys.data?.mine.some((m) => m.fp === k.fp));
 
   useEffect(() => {
     if (open) setTitle(initialTitle ?? "");
@@ -34,7 +40,7 @@ export function CreateNote({ open, onOpenChange, initialTitle }: { open: boolean
     setBusy(true);
     setError(undefined);
     try {
-      const r = await api.post<WriteResult>("/api/v1/notes", { type, title: title.trim(), id });
+      const r = await api.post<WriteResult>("/api/v1/notes", { type, title: title.trim(), id, ...(isPrivate ? { private: true, recipients: extra } : {}) });
       toast("ok", t("note.created", { id: r.id }));
       onOpenChange(false);
       router.push(`${notePath(r.id)}?tab=edit`);
@@ -72,6 +78,24 @@ export function CreateNote({ open, onOpenChange, initialTitle }: { open: boolean
           <Field label={t("note.folder")} id="new-folder" hint={writable.length ? t("note.folderHint", { spaces: writable.filter((s) => s.path).map((s) => s.path).join(", ") || "-" }) : undefined}>
             <Input id="new-folder" value={folder} onChange={(e) => setFolder(e.target.value)} placeholder={writable.find((s) => s.path)?.path ?? ""} />
           </Field>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={isPrivate} disabled={!hasKey} onChange={(e) => setIsPrivate(e.target.checked)} />
+              {t("private.createLabel")}
+            </label>
+            {keys.data && !hasKey && <p className="text-xs text-muted-foreground">{t("private.createNeedsKey")}</p>}
+            {isPrivate && others.length > 0 && (
+              <fieldset className="space-y-1 pl-6">
+                <legend className="mb-1 text-xs text-muted-foreground">{t("private.alsoFor")}</legend>
+                {others.map((k) => (
+                  <label key={k.fp} className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={extra.includes(k.fp)} onChange={(e) => setExtra((x) => (e.target.checked ? [...x, k.fp] : x.filter((f) => f !== k.fp)))} />
+                    {k.label} <span className="text-xs text-muted-foreground">· {k.owner.replace(/^(user|token):/, "")}</span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">
             {t("note.path")}: <code>{id || "…"}.md</code>
           </p>

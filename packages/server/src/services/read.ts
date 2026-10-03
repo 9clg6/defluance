@@ -200,7 +200,7 @@ export async function noteHistory(ctx: Ctx, actor: Actor, id: string, opts: { di
   const hash = checkRev(opts.diff);
   if (!commits.some((c) => c.hash.startsWith(hash))) throw notFound("commit");
   // A diff of an encrypted file is a diff of base64: it says nothing, so it is not shown.
-  if (isPrivateRow(note)) return { id: note.id, commit: hash, patch: null, private: true };
+  if (isPrivateRow(note)) return { id: note.id, commit: hash, patch: "", private: true };
   const patch = await diff(ctx.root, `${hash}^`, hash, note.path).catch(() => diff(ctx.root, EMPTY_TREE, hash, note.path));
   return { id: note.id, commit: hash, patch };
 }

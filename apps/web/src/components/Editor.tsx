@@ -8,6 +8,9 @@ import { EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { useEffect, useRef } from "react";
+import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
+import * as Y from "yjs";
+import type { Awareness } from "@/hooks/use-collab";
 import { api, qs } from "@/lib/api";
 import type { NoteSummary, SearchHit } from "@/lib/types";
 
@@ -93,7 +96,11 @@ export function wikilinkSource(linkTypes: string[]) {
   };
 }
 
-export function Editor({ value, onChange, onSave, linkTypes, label }: { value: string; onChange: (v: string) => void; onSave: () => void; linkTypes: string[]; label: string }) {
+/**
+ * `collab` binds the editor to a shared document: remote cursors, and an undo that only undoes your own changes.
+ * Without it the editor owns the text after mount, as before.
+ */
+export function Editor({ value, onChange, onSave, linkTypes, label, collab, readOnly = false }: { value: string; onChange: (v: string) => void; onSave: () => void; linkTypes: string[]; label: string; collab?: { text: Y.Text; awareness: Awareness }; readOnly?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
@@ -105,10 +112,11 @@ export function Editor({ value, onChange, onSave, linkTypes, label }: { value: s
     const view = new EditorView({
       parent: host.current,
       state: EditorState.create({
-        doc: value,
+        doc: collab ? collab.text.toString() : value,
         extensions: [
           lineNumbers(),
-          history(),
+          ...(collab ? [yCollab(collab.text, collab.awareness, { undoManager: new Y.UndoManager(collab.text) })] : [history()]),
+          ...(readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),
           drawSelection(),
           highlightActiveLine(),
           markdown(),
@@ -118,7 +126,7 @@ export function Editor({ value, onChange, onSave, linkTypes, label }: { value: s
           keymap.of([
             { key: "Mod-s", preventDefault: true, run: () => (onSaveRef.current(), true) },
             ...defaultKeymap,
-            ...historyKeymap,
+            ...(collab ? yUndoManagerKeymap : historyKeymap),
           ]),
           EditorView.contentAttributes.of({ "aria-label": label, "aria-multiline": "true" }),
           EditorView.updateListener.of((u) => {

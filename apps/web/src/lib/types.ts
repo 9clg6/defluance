@@ -15,6 +15,8 @@ export interface Capabilities {
   embedder: string;
   llm: string | null;
   deep: boolean;
+  /** Several people can edit a note at once and see each other. */
+  collab: boolean;
 }
 
 export interface NoteSummary {
@@ -26,6 +28,38 @@ export interface NoteSummary {
   space: string;
   tags: string[];
   updated_at: string;
+  /** The note is encrypted. */
+  private?: boolean;
+  /** An encrypted note whose text this person cannot read right now: the title is the file name. */
+  locked?: boolean;
+}
+
+/** A key that can read a private note. */
+export interface Recipient {
+  fp: string;
+  label: string;
+  owner: string | null;
+}
+
+export interface KeyStatus {
+  fp: string;
+  label: string;
+  bound: "passphrase" | "token";
+  created_at: string;
+  unlocked: boolean;
+  expires_at: string | null;
+}
+
+export interface KeyringEntry {
+  fp: string;
+  label: string;
+  owner: string;
+  created: string;
+}
+
+export interface KeysResponse {
+  mine: KeyStatus[];
+  keyring: KeyringEntry[];
 }
 
 export interface NoteDetail extends NoteSummary {
@@ -36,6 +70,12 @@ export interface NoteDetail extends NoteSummary {
   raw: string;
   commit: string | null;
   rev: string | null;
+  /** Private notes only. */
+  recipients?: Recipient[];
+  /** Why a locked note is locked: a key to unlock, no key at all, or not a recipient. */
+  reason?: "locked" | "not-recipient" | "no-key";
+  /** The keys of yours that would open a locked note. */
+  keys?: string[];
 }
 
 export interface GhNode {
@@ -79,6 +119,8 @@ export interface SearchHit {
   score: number;
   vector?: number;
   sources: ("fts" | "vector")[];
+  /** Found in an encrypted note, with a key that is unlocked. */
+  private?: boolean;
 }
 
 export type SearchMode = "hybrid" | "keyword" | "meaning" | "smart";
@@ -128,6 +170,8 @@ export interface AskResult {
   citations: Citation[];
   refused: boolean;
   mode: "llm" | "extractive" | "deep";
+  /** Private notes were used, so the answer was written without the language model. */
+  llmWithheld?: boolean;
   steps?: { tool: string; input: string; summary: string }[];
 }
 

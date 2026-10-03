@@ -35,7 +35,8 @@ export function useMiddleware(app: Hono<AppEnv>, ctx: Ctx, metrics: Metrics): vo
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https://avatars.githubusercontent.com"],
         fontSrc: ["'self'", "data:"],
-        connectSrc: ["'self'"],
+        // Safari does not let 'self' cover WebSockets: name the origin of live editing explicitly.
+        connectSrc: ["'self'", ctx.publicUrl.replace(/^http/, "ws")],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],

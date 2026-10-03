@@ -199,4 +199,17 @@ describe("live editing", () => {
     expect(await s.ctx.sys.loadDraft(id)).toBeNull();
     a.close();
   });
+
+  it("announces a person who only set some unrelated awareness field, as the browser editor does", async () => {
+    const other = await s.token(["read", "write"], [], "nadia");
+    const a = await join("produit/auth-login");
+    const b = await join("produit/auth-login", other);
+    a.provider.awareness.setLocalStateField("user", { name: "", color: "#475569" });
+    b.provider.awareness.setLocalStateField("user", { name: "", color: "#475569" });
+    await until(() => [...a.provider.awareness.getStates().keys()].some((id) => id !== a.doc.clientID), "a to see b");
+    const seen = [...a.provider.awareness.getStates()].find(([id]) => id !== a.doc.clientID)?.[1] as { user: { name: string } };
+    expect(seen.user.name).toBe("nadia");
+    a.close();
+    b.close();
+  });
 });

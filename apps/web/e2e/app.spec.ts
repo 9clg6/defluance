@@ -99,7 +99,8 @@ test.describe("editing", () => {
     await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText(/Saved as commit [0-9a-f]{7}/)).toBeVisible();
-    await expect(page.getByText("Every delivery has a unique id header.")).toBeVisible();
+    // the shared editor stays open after a save: the text is in the editor and in the preview
+    await expect(page.getByText("Every delivery has a unique id header.").first()).toBeVisible();
 
     await page.getByRole("tab", { name: "History" }).click();
     await expect(page.getByRole("button", { name: /update tech\/webhooks/ })).toBeVisible();

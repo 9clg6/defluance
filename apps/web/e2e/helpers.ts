@@ -11,6 +11,8 @@ export async function signIn(page: Page) {
 
 /** Fails on serious or critical WCAG violations. The canvas of the graph is covered by its list alternative. */
 export async function expectAccessible(page: Page, label: string) {
+  // Arc text swaps (a badge going from "Connecting…" to "Live") leave the outgoing copy half faded for a moment: wait for it.
+  await page.waitForFunction(() => !document.querySelector("[data-motion-pop-id]"));
   // Colour transitions would make axe sample half-way colours right after a theme switch.
   await page.addStyleTag({ content: "*, *::before, *::after { transition: none !important; animation: none !important; }" });
   const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();

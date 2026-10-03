@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
 import { StatusBadge, TypeBadge } from "@/components/badges";
+import { PrivateBadge } from "@/components/PrivateNote";
 import { Badge } from "@/components/ui";
 import { notePath } from "@/lib/api";
 import { highlight } from "@/lib/highlight";
@@ -30,6 +31,7 @@ export function ResultCard({ hit, terms, onOpen }: { hit: SearchHit; terms: stri
         <Link href={notePath(hit.note.id, anchor)} onClick={onOpen} className="font-semibold text-primary underline-offset-2 hover:underline">
           {hit.note.title}
         </Link>
+        {hit.private && <PrivateBadge />}
         <TypeBadge type={hit.note.type} />
         <StatusBadge status={hit.note.status} />
         <Badge tone="muted" title={t("result.matchedBy", { how })}>

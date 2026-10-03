@@ -3,6 +3,7 @@
 import { Check, Copy, Trash2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { KeysPanel } from "@/components/KeysPanel";
 import { Badge, Button, Card, ErrorBox, Field, Input, Select, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApi } from "@/hooks/use-api";
 import { api, errorMessage, qs } from "@/lib/api";
@@ -44,6 +45,7 @@ function Tokens() {
   const [scopes, setScopes] = useState<string[]>(["read"]);
   const [spaces, setSpaces] = useState<string[]>([]);
   const [days, setDays] = useState("90");
+  const [withKey, setWithKey] = useState(false);
   const [error, setError] = useState<string>();
   const [created, setCreated] = useState<string>();
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
@@ -51,7 +53,7 @@ function Tokens() {
   const create = async () => {
     setError(undefined);
     try {
-      const r = await api.post<{ token: string }>("/api/v1/tokens", { name: name.trim(), scopes, spaces, ...(days ? { expires_in_days: Number(days) } : {}) });
+      const r = await api.post<{ token: string }>("/api/v1/tokens", { name: name.trim(), scopes, spaces, ...(days ? { expires_in_days: Number(days) } : {}), ...(withKey ? { private_key: true } : {}) });
       setCreated(r.token);
       setName("");
       await tokens.reload();
@@ -106,6 +108,13 @@ function Tokens() {
             </div>
             <p className="mt-1 text-xs text-muted-foreground">{t("tokens.spacesHint")}</p>
           </fieldset>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={withKey} onChange={(e) => setWithKey(e.target.checked)} />
+            <span>
+              {t("tokens.withKey")}
+              <span className="block text-xs text-muted-foreground">{t("tokens.withKeyHint")}</span>
+            </span>
+          </label>
           <Field label={t("tokens.expires")} id="tk-days">
             <Input id="tk-days" type="number" min={1} max={3650} value={days} onChange={(e) => setDays(e.target.value)} className="w-28" />
           </Field>
@@ -377,7 +386,7 @@ function About() {
   );
 }
 
-const SETTINGS_TABS = ["tokens", "members", "github", "about"];
+const SETTINGS_TABS = ["tokens", "members", "github", "private", "about"];
 
 export default function SettingsPage() {
   return (
@@ -399,11 +408,13 @@ function SettingsContent() {
           <TabsTrigger value="tokens">{t("settings.tokens")}</TabsTrigger>
           <TabsTrigger value="members">{t("settings.members")}</TabsTrigger>
           <TabsTrigger value="github">GitHub</TabsTrigger>
+          <TabsTrigger value="private">{t("private.title")}</TabsTrigger>
           <TabsTrigger value="about">{t("settings.about")}</TabsTrigger>
         </TabsList>
         <TabsContent value="tokens" className="pt-5"><Tokens /></TabsContent>
         <TabsContent value="members" className="pt-5"><Members /></TabsContent>
         <TabsContent value="github" className="pt-5"><Github /></TabsContent>
+        <TabsContent value="private" className="pt-5"><KeysPanel /></TabsContent>
         <TabsContent value="about" className="pt-5"><About /></TabsContent>
       </Tabs>
     </div>
