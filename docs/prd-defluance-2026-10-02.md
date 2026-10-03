@@ -1,3 +1,13 @@
+---
+type: note
+status: review
+owner: clement
+tags: [defluance, bmad]
+links:
+  - "[[product-brief-defluance-2026-10-02|implements]]"
+  - "[[architecture-defluance-2026-10-02|related]]"
+---
+
 # PRD : Defluance
 
 **Date :** 2026-10-02

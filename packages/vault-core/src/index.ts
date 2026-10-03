@@ -1,7 +1,6 @@
-import type { LinkType } from "@defluance/shared";
-
-/** Edge between two notes. Filled by the parser (STORY-002). */
-export interface Link {
-  target: string;
-  type: LinkType;
-}
+export * from "./parse.js";
+export * from "./schema.js";
+export * from "./vault.js";
+export * from "./validate.js";
+export * from "./templates.js";
+export * from "./git.js";

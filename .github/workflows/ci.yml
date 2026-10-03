@@ -17,3 +17,5 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm build
+      - run: node packages/cli/dist/bin.js validate docs

@@ -1,3 +1,13 @@
+---
+type: note
+status: review
+owner: clement
+tags: [defluance, bmad]
+links:
+  - "[[architecture-defluance-2026-10-02|implements]]"
+  - "[[prd-defluance-2026-10-02|implements]]"
+---
+
 # Sprint Plan : Defluance
 
 **Date :** 2026-10-02

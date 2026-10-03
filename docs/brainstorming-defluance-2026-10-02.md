@@ -1,3 +1,12 @@
+---
+type: note
+status: approved
+owner: clement
+tags: [defluance, bmad]
+links:
+  - "[[product-brief-defluance-2026-10-02|related]]"
+---
+
 # Session de brainstorming : Defluance
 
 **Date :** 2026-10-02

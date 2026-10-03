@@ -1,0 +1,3 @@
+# Embedded note
+
+Transclusion target.

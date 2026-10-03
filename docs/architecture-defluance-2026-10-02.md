@@ -1,3 +1,13 @@
+---
+type: technical-spec
+status: review
+owner: clement
+tags: [defluance, bmad]
+links:
+  - "[[prd-defluance-2026-10-02|implements]]"
+  - "[[vault-format|related]]"
+---
+
 # Architecture système : Defluance
 
 **Date :** 2026-10-02

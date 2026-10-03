@@ -1,7 +1,7 @@
 version: "6.0.0"
 project_name: "Defluance"
 project_level: 3
-current_sprint: 1
+current_sprint: 2
 sprint_plan_path: "docs/sprint-plan-defluance-2026-10-02.md"
 
 sprints:
@@ -10,18 +10,18 @@ sprints:
     end_date: "2026-10-16"
     capacity_points: 30
     committed_points: 26
-    completed_points: 3
-    status: "in_progress"
+    completed_points: 26
+    status: "done"
     goal: "Format de vault spécifié, parsé, validé et versionné ; validate en CI sur docs/"
     stories:
       - { story_id: "STORY-001", title: "Monorepo et CI de base", points: 3, status: "done" }
-      - { story_id: "STORY-002", title: "Parser markdown et wikilinks typés", points: 5, status: "not_started" }
-      - { story_id: "STORY-003", title: "Schéma de fiche et validation", points: 3, status: "not_started" }
-      - { story_id: "STORY-004", title: "Résolution de liens compatible Obsidian", points: 3, status: "not_started" }
-      - { story_id: "STORY-005", title: "Opérations git", points: 5, status: "not_started" }
-      - { story_id: "STORY-006", title: "CLI init et validate", points: 3, status: "not_started" }
-      - { story_id: "STORY-007", title: "Templates et CLI new", points: 2, status: "not_started" }
-      - { story_id: "STORY-008", title: "Spec publique du format et dogfooding", points: 2, status: "not_started" }
+      - { story_id: "STORY-002", title: "Parser markdown et wikilinks typés", points: 5, status: "done" }
+      - { story_id: "STORY-003", title: "Schéma de fiche et validation", points: 3, status: "done" }
+      - { story_id: "STORY-004", title: "Résolution de liens compatible Obsidian", points: 3, status: "done" }
+      - { story_id: "STORY-005", title: "Opérations git", points: 5, status: "done" }
+      - { story_id: "STORY-006", title: "CLI init et validate", points: 3, status: "done" }
+      - { story_id: "STORY-007", title: "Templates et CLI new", points: 2, status: "done" }
+      - { story_id: "STORY-008", title: "Spec publique du format et dogfooding", points: 2, status: "done" }
 
   - sprint_number: 2
     start_date: "2026-10-19"
