@@ -27,7 +27,7 @@ describe("search modes, smart search and deep ask over REST", () => {
 
   it("announces what search can do", async () => {
     const me = (await s.call("GET", "/api/v1/me")).body;
-    expect(me.capabilities).toEqual({ semantic: false, embedder: "hash-512", llm: "mock:smart", deep: true });
+    expect(me.capabilities).toEqual({ semantic: false, embedder: "hash-512", llm: "mock:smart", deep: true, collab: true });
     const status = (await s.call("GET", "/api/v1/index/status")).body;
     expect(status.capabilities.llm).toBe("mock:smart");
     expect(status.embedding).toMatchObject({ running: false, pending: 0, error: null });

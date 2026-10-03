@@ -24,14 +24,20 @@
     "@hono/zod-openapi": "^1.6.3",
     "@modelcontextprotocol/sdk": "^1.32.0",
     "hono": "^4.13.12",
+    "lib0": "^0.2.119",
     "pg": "^8.23.1",
+    "ws": "^8.22.0",
+    "y-protocols": "^1.0.7",
     "yaml": "^2.9.1",
+    "yjs": "^13.6.33",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@seriousme/openapi-schema-validator": "^2.11.0",
     "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.2",
     "ai": "^7.0.127",
-    "fast-check": "^4.10.2"
+    "fast-check": "^4.10.2",
+    "y-websocket": "^3.1.0"
   }
 }

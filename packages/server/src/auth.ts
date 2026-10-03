@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { DEFAULT_SPACE } from "@defluance/vault-core";
+import type { Ctx } from "./context.js";
 import { ROLE_PERMS, type Perm, type Role, type SystemStore, type TokenRow, type UserRow } from "./system.js";
 
 export interface Grant {
@@ -50,6 +51,29 @@ export async function actorFromUser(sys: SystemStore, user: UserRow, opts: { adm
 }
 
 export const spaceOrDefault = (s: string | undefined) => s ?? DEFAULT_SPACE;
+
+export const SESSION_COOKIE = "dfl_session";
+
+/** Who is calling: a Bearer token, or a signed session cookie. Shared by HTTP requests and WebSocket upgrades. */
+export async function actorFromRequest(ctx: Pick<Ctx, "sys" | "keys" | "sessionSecret" | "now" | "admins" | "defaultRole">, r: { authorization?: string | undefined; session?: string | undefined }): Promise<{ actor: Actor; via: "bearer" | "cookie" } | null> {
+  if (r.authorization) {
+    const m = /^Bearer\s+(.+)$/i.exec(r.authorization);
+    const plaintext = m?.[1]?.trim();
+    const token = plaintext ? await ctx.sys.findToken(plaintext) : null;
+    if (!token || !plaintext) return null;
+    // An agent's own token also unlocks the key bound to it (cached, so this is a lookup after the first call).
+    await ctx.keys.unlockWithToken(token.id, plaintext);
+    return { actor: actorFromToken(token, "bearer"), via: "bearer" };
+  }
+  const session = verify<{ k: "user" | "token"; id: string; exp: number }>(r.session, ctx.sessionSecret, ctx.now().getTime());
+  if (!session) return null;
+  if (session.k === "token") {
+    const t = await ctx.sys.getToken(session.id);
+    return t && !t.revoked_at && (!t.expires_at || new Date(t.expires_at) > ctx.now()) ? { actor: actorFromToken(t, "cookie"), via: "cookie" } : null;
+  }
+  const user = await ctx.sys.getUser(session.id);
+  return user ? { actor: await actorFromUser(ctx.sys, user, { admins: ctx.admins, defaultRole: ctx.defaultRole }), via: "cookie" } : null;
+}
 
 // ---------------------------------------------------------------- signed cookies
 

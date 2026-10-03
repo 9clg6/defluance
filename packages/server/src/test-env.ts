@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { hashEmbedder, type Embedder } from "@defluance/shared";
 import type { Llm } from "@defluance/ai";
+import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { createContext, indexNow, jobHandlers, type Ctx } from "./context.js";
 import type { GithubPort } from "./ports.js";
@@ -31,11 +32,13 @@ export interface TestServer {
   git(...args: string[]): string;
   /** Every log line the server wrote, as JSON strings. */
   logs: string[];
+  /** Base URL of a real HTTP listener, when started with `listen`. */
+  url: string | null;
   flush(): Promise<void>;
   cleanup(): Promise<void>;
 }
 
-export async function makeServer(o: { files?: Record<string, string>; github?: GithubPort | null | ((ctx: Ctx) => GithubPort); llm?: Llm | null; env?: Record<string, string>; fetch?: typeof fetch; uiDir?: string; embedder?: Embedder } = {}): Promise<TestServer> {
+export async function makeServer(o: { files?: Record<string, string>; github?: GithubPort | null | ((ctx: Ctx) => GithubPort); llm?: Llm | null; env?: Record<string, string>; fetch?: typeof fetch; uiDir?: string; embedder?: Embedder; listen?: boolean } = {}): Promise<TestServer> {
   const root = await mkdtemp(join(tmpdir(), "dfl-srv-"));
   for (const [p, c] of Object.entries(o.files ?? FILES)) {
     await mkdir(dirname(join(root, p)), { recursive: true });
@@ -63,6 +66,16 @@ export async function makeServer(o: { files?: Record<string, string>; github?: G
   const { app } = createApp(ctx);
   const admin = (await ctx.sys.createToken({ name: "admin", scopes: ["read", "write", "issues", "admin"], spaces: [], createdBy: "test" })).token;
 
+  let listener: ReturnType<typeof serve> | null = null;
+  let url: string | null = null;
+  if (o.listen) {
+    listener = serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" });
+    ctx.collab.attach(listener as never);
+    await new Promise<void>((r) => listener?.once("listening", () => r()));
+    const addr = listener.address();
+    url = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
+  }
+
   const call: TestServer["call"] = async (method, path, opts = {}) => {
     const headers: Record<string, string> = { ...(opts.headers ?? {}) };
     const t = opts.token === undefined ? admin : opts.token;
@@ -88,10 +101,12 @@ export async function makeServer(o: { files?: Record<string, string>; github?: G
     request: (input, init) => app.request(input, init),
     git,
     logs,
+    url,
     flush: async () => void (await ctx.jobs.runDue(jobHandlers(ctx))),
     cleanup: async () => {
       ctx.jobs.stop();
       await ctx.close();
+      await new Promise<void>((r) => (listener ? listener.close(() => r()) : r()));
       await rm(root, { recursive: true, force: true });
     },
   };

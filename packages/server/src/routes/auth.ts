@@ -1,36 +1,17 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { actorFromToken, actorFromUser, sign, verify, type Actor } from "../auth.js";
+import { SESSION_COOKIE, actorFromRequest, actorFromToken, sign, verify } from "../auth.js";
 import type { Ctx } from "../context.js";
 import type { Metrics } from "../metrics.js";
 import * as svc from "../services/index.js";
 import { type AppEnv, problem, router } from "./http.js";
 
-export const SESSION_COOKIE = "dfl_session";
+export { SESSION_COOKIE };
 const SESSION_DAYS = 7;
 
 /** Bearer token or signed session cookie → actor, with CSRF and rate-limit checks. */
 export function authenticate(ctx: Ctx, metrics: Metrics): MiddlewareHandler<AppEnv> {
-  const resolveActor = async (c: Context): Promise<{ actor: Actor; via: "bearer" | "cookie" } | null> => {
-    const header = c.req.header("authorization");
-    if (header) {
-      const m = /^Bearer\s+(.+)$/i.exec(header);
-      const plaintext = m?.[1]?.trim();
-      const token = plaintext ? await ctx.sys.findToken(plaintext) : null;
-      if (!token || !plaintext) return null;
-      // An agent's own token also unlocks the key bound to it (cached, so this is a lookup after the first call).
-      await ctx.keys.unlockWithToken(token.id, plaintext);
-      return { actor: actorFromToken(token, "bearer"), via: "bearer" };
-    }
-    const session = verify<{ k: "user" | "token"; id: string; exp: number }>(getCookie(c, SESSION_COOKIE), ctx.sessionSecret, ctx.now().getTime());
-    if (!session) return null;
-    if (session.k === "token") {
-      const t = await ctx.sys.getToken(session.id);
-      return t && !t.revoked_at && (!t.expires_at || new Date(t.expires_at) > ctx.now()) ? { actor: actorFromToken(t, "cookie"), via: "cookie" } : null;
-    }
-    const user = await ctx.sys.getUser(session.id);
-    return user ? { actor: await actorFromUser(ctx.sys, user, { admins: ctx.admins, defaultRole: ctx.defaultRole }), via: "cookie" } : null;
-  };
+  const resolveActor = (c: Context) => actorFromRequest(ctx, { authorization: c.req.header("authorization"), session: getCookie(c, SESSION_COOKIE) });
 
   const csrf = (c: Context): boolean => {
     if (["GET", "HEAD", "OPTIONS"].includes(c.req.method)) return true;

@@ -121,6 +121,8 @@ export function capabilities(ctx: Ctx) {
     llm: ctx.llm?.id ?? null,
     /** Deep search needs a model that can call tools. */
     deep: !!ctx.llm?.model,
+    /** Several people can edit a note at the same time and see each other. */
+    collab: true,
   };
 }
 

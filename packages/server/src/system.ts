@@ -45,6 +45,14 @@ CREATE TABLE keys (
 CREATE INDEX keys_owner ON keys(owner_id);
 `,
   },
+  {
+    id: "system-003",
+    up: (d) => `
+CREATE TABLE collab_drafts (
+  note_id TEXT PRIMARY KEY, base_commit TEXT NOT NULL, state ${d === "sqlite" ? "BLOB" : "BYTEA"} NOT NULL, updated_at TEXT NOT NULL
+);
+`,
+  },
 ];
 
 export interface KeyRow {
@@ -212,6 +220,24 @@ export class SystemStore {
 
   async deleteKey(fp: string): Promise<void> {
     await this.db.run("DELETE FROM keys WHERE fp = ?", [fp]);
+  }
+
+  // ---- unsaved live-editing drafts (public notes only), so they survive a restart
+
+  async saveDraft(noteId: string, baseCommit: string, state: Uint8Array): Promise<void> {
+    const at = this.now().toISOString();
+    const buf = Buffer.from(state);
+    await this.db.run("DELETE FROM collab_drafts WHERE note_id = ?", [noteId]);
+    await this.db.run("INSERT INTO collab_drafts (note_id, base_commit, state, updated_at) VALUES (?, ?, ?, ?)", [noteId, baseCommit, buf, at]);
+  }
+
+  async loadDraft(noteId: string): Promise<{ base_commit: string; state: Uint8Array; updated_at: string } | null> {
+    const r = await this.db.get("SELECT base_commit, state, updated_at FROM collab_drafts WHERE note_id = ?", [noteId]);
+    return r ? { base_commit: r["base_commit"] as string, state: new Uint8Array(r["state"] as Buffer), updated_at: r["updated_at"] as string } : null;
+  }
+
+  async deleteDraft(noteId: string): Promise<void> {
+    await this.db.run("DELETE FROM collab_drafts WHERE note_id = ?", [noteId]);
   }
 
   // ---- users and memberships

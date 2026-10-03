@@ -41,6 +41,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const requested = opts.port ?? 4000;
   const host = opts.host ?? "127.0.0.1";
   const server = serve({ fetch: app.fetch, port: requested, hostname: host });
+  ctx.collab.attach(server as never);
   await new Promise<void>((resolve, reject) => {
     server.once("listening", resolve);
     server.once("error", reject);
@@ -54,6 +55,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     bootstrapToken,
     async close() {
       ctx.jobs.stop();
+      await ctx.collab.close(); // open WebSockets would keep the HTTP server from closing
       await new Promise<void>((r) => server.close(() => r()));
       await ctx.close();
     },

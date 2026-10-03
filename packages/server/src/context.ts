@@ -30,6 +30,7 @@ import {
 } from "@defluance/vault-core";
 import type { GithubPort } from "./ports.js";
 import { RateLimiter } from "./auth.js";
+import { Collab } from "./collab.js";
 import { KeyService, type KeyOptions } from "./keys.js";
 import { PrivateIndex } from "./private-index.js";
 import { SystemStore, type Role } from "./system.js";
@@ -59,6 +60,8 @@ export interface Ctx {
   priv: PrivateIndex;
   /** Whether a language model may see private text when answering a question. Off unless DFL_PRIVATE_LLM=allow. */
   privateLlm: boolean;
+  /** Live editing rooms. Attach it to the HTTP server to accept WebSocket connections. */
+  collab: Collab;
   jobs: JobQueue;
   embedder: Embedder;
   llm: Llm | null;
@@ -164,7 +167,7 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
 
   const getSchema = cached(join(root, SCHEMA_PATH), () => loadSchema(root), () => structuredClone(defaultSchemaFallback));
 
-  return {
+  const ctx: Ctx = {
     root,
     embedding: { running: false, done: 0, total: 0, error: null },
     embeddingDone: Promise.resolve(),
@@ -174,6 +177,7 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
     keys,
     priv,
     privateLlm: cfg.DFL_PRIVATE_LLM === "allow",
+    collab: undefined as never,
     jobs,
     embedder: opts.embedder ?? createEmbedder(env["DFL_EMBED"], { env }),
     llm: opts.llm !== undefined ? opts.llm : createLlm(env["DFL_LLM"], { env }),
@@ -195,10 +199,13 @@ export async function createContext(opts: ContextOptions): Promise<Ctx> {
     now,
     close: async () => {
       clearInterval(sweeper);
+      await ctx.collab.close();
       priv.dropAll();
       await db.close();
     },
   };
+  ctx.collab = new Collab(ctx);
+  return ctx;
 }
 
 import { defaultSchema as defaultSchemaFallback } from "@defluance/vault-core";

@@ -95,7 +95,10 @@ async function persist(
       ...(p.baseCommit ? { baseCommit: p.baseCommit } : {}),
       ...(branch ? { branch } : {}),
     });
-    if (!branch) await indexAfterWrite(ctx, [path]);
+    if (!branch) {
+      await indexAfterWrite(ctx, [path]);
+      ctx.collab.noteWritten(id, r.commit, actor.name, p.file);
+    }
     if (config.vaultPush) await pushToOrigin(ctx.root, branch ?? "HEAD").catch((e: unknown) => ctx.log({ msg: "push failed", error: String(e) }));
     await audit(ctx, actor, p.action, id, { branch, message: p.message, ...p.extra }, r.commit);
     return { id, commit: r.commit, branch, diagnostics: p.diagnostics };
