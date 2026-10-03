@@ -1,6 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import type { Ctx } from "../context.js";
 import { HttpError } from "../errors.js";
+import { getPublicRepos, getPublicState } from "../github/public.js";
 import * as svc from "../services/index.js";
 import { actorOf, errs, jsonBody, ok, router } from "./http.js";
 
@@ -9,7 +10,13 @@ export function githubRoutes(ctx: Ctx) {
   // github
   r.openapi(createRoute({ method: "get", path: "/api/v1/github/status", summary: "GitHub connector status", tags: ["github"], responses: { 200: ok("Status"), ...errs } }), async (c) => {
     const config = await ctx.getConfig();
-    return c.json({ configured: !!ctx.github, repos: ctx.github ? await ctx.github.repos().catch(() => []) : [], spaces: config.spaces.map((s) => ({ name: s.name, repos: s.repos })), defaultRepos: config.repos, vaultRepo: config.vaultRepo, webhookUrl: `${ctx.publicUrl}/webhooks/github`, oauth: !!ctx.oauth }, 200);
+    const repos = ctx.github ? await ctx.github.repos().catch(() => []) : [];
+    // Linked repositories read without the App. The demo connector counts every known repository as installed, but they are public there.
+    const installed = ctx.github?.mock ? [] : repos.map((r) => r.toLowerCase());
+    const linked = [...config.repos, ...config.spaces.flatMap((s) => s.repos)].map((r) => r.toLowerCase());
+    const publicRepos = ctx.github ? (await getPublicRepos(ctx)).filter((r) => linked.includes(r.toLowerCase()) && !installed.includes(r.toLowerCase())) : [];
+    const publicSync = (await Promise.all(publicRepos.map((r) => getPublicState(ctx, r)))).flatMap((s) => (s ? [{ repo: s.repo, at: s.at, partial: s.partial, rateLimitedUntil: s.rateLimitedUntil }] : []));
+    return c.json({ configured: !!ctx.github, repos, publicRepos, publicSync, spaces: config.spaces.map((s) => ({ name: s.name, repos: s.repos })), defaultRepos: config.repos, vaultRepo: config.vaultRepo, webhookUrl: `${ctx.publicUrl}/webhooks/github`, oauth: !!ctx.oauth }, 200);
   });
   r.openapi(createRoute({ method: "get", path: "/api/v1/github/nodes/{owner}/{repo}/{n}", summary: "A cached issue or pull request", tags: ["github"], request: { params: z.object({ owner: z.string(), repo: z.string(), n: z.string() }) }, responses: { 200: ok("Node"), ...errs } }), async (c) => {
     const p = c.req.valid("param");
@@ -29,9 +36,9 @@ export function githubRoutes(ctx: Ctx) {
   }), async (c) => c.json(await svc.listGithubItems(ctx, actorOf(c), c.req.valid("query")), 200));
   r.openapi(createRoute({
     method: "put", path: "/api/v1/github/repos", summary: "Link or unlink a repository (admin)", tags: ["github"],
-    description: "Edits `.defluance/config.yaml` (the `repos` of `space`, or the top-level `repos`), commits `github: link <repo>`, then syncs that repository in the background. The repository must be one the GitHub App can see. Agents cannot call it.",
-    request: { body: jsonBody(z.object({ repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, "owner/name"), space: z.string().optional(), linked: z.boolean() })) },
-    responses: { 200: ok("{ repo, space, linked, changed, commit }"), ...errs },
+    description: "Edits `.defluance/config.yaml` (the `repos` of `space`, or the top-level `repos`), commits `github: link <repo>`, then syncs that repository in the background. The repository must be one the GitHub App can see, or a public repository with `public: true`: it is then read through GitHub's unauthenticated API (read-only, no file lists for pull requests, 60 requests per hour, refreshed every 15 minutes). Agents cannot call it.",
+    request: { body: jsonBody(z.object({ repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, "owner/name"), space: z.string().optional(), linked: z.boolean(), public: z.boolean().optional() })) },
+    responses: { 200: ok("{ repo, space, linked, public, changed, commit }"), ...errs },
   }), async (c) => c.json(await svc.setGithubRepo(ctx, actorOf(c), c.req.valid("json")), 200));
   r.openapi(createRoute({ method: "post", path: "/api/v1/github/resync", summary: "Re-read issues and pull requests from GitHub (admin)", tags: ["github"], responses: { 200: ok("Counts"), ...errs } }), async (c) => {
     const actor = actorOf(c);

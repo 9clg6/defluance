@@ -6,6 +6,7 @@ import { CONFIG_PATH, ConflictError, DEFAULT_SPACE, pushToOrigin, writeAndCommit
 import { type Actor } from "../auth.js";
 import { type Ctx } from "../context.js";
 import { HttpError, forbidden } from "../errors.js";
+import { getPublicRepos, setPublicRepos } from "../github/public.js";
 import { isGlobalAdmin } from "./admin.js";
 import { audit, authorOf, readSpaces } from "./shared.js";
 
@@ -63,36 +64,59 @@ function editRepos(raw: string, repo: string, space: string | undefined, linked:
   return doc.toString({ flowCollectionPadding: false, lineWidth: 0 });
 }
 
-/** Link a repository the App can see to a space (or to the vault's default repos), or unlink it. Admin only. */
-export async function setGithubRepo(ctx: Ctx, actor: Actor, input: { repo: string; space?: string | undefined; linked: boolean }) {
+/**
+ * Link a repository to a space (or to the vault's default repos), or unlink it. Admin only. Linking needs the App to see
+ * the repository, or `public: true` for a public repository read through GitHub's unauthenticated API (an installed
+ * repository always goes through the App, whatever the flag says).
+ */
+export async function setGithubRepo(ctx: Ctx, actor: Actor, input: { repo: string; space?: string | undefined; linked: boolean; public?: boolean | undefined }) {
   if (actor.agent) throw forbidden("agents cannot link repositories");
   if (!isGlobalAdmin(actor)) throw forbidden("requires admin on every space");
-  if (!ctx.github) throw new HttpError(503, "GitHub is not configured");
-  const visible = (await ctx.github.repos()).find((r) => r.toLowerCase() === input.repo.toLowerCase());
+  const github = ctx.github;
+  if (!github) throw new HttpError(503, "GitHub is not configured");
+  const wantPublic = input.linked && !!input.public;
+  const sees = (list: string[]) => list.find((r) => r.toLowerCase() === input.repo.toLowerCase());
+  // The demo connector lists the repositories it knows as if installed; they still count as public there.
+  const visible = sees(await github.repos().catch((e: unknown) => { if (wantPublic) return []; throw e; }));
+  let isPublic = false;
+  let found = visible;
+  if (wantPublic && (!visible || github.mock)) {
+    if (!github.validatePublic) throw new HttpError(422, "this GitHub connector cannot read public repositories");
+    found = await github.validatePublic(input.repo);
+    isPublic = true;
+  }
   // Unlinking a repository the App lost access to must stay possible: only linking needs the App to see it.
-  const known = visible ?? (!input.linked ? input.repo : undefined);
-  if (!known) throw new HttpError(422, `the GitHub App cannot see "${input.repo}"`);
+  found ??= !input.linked ? input.repo : undefined;
+  if (!found) throw new HttpError(422, `the GitHub App cannot see "${input.repo}"`);
+  const known: string = found;
   const space = input.space && input.space !== DEFAULT_SPACE ? input.space : undefined;
 
   const run = async () => {
     const raw = await readFile(join(ctx.root, CONFIG_PATH), "utf8").catch(() => "");
     const next = editRepos(raw, known, space, input.linked);
-    if (next === null) return { repo: known, space: space ?? DEFAULT_SPACE, linked: input.linked, changed: false, commit: null };
+    if (next === null) return { repo: known, space: space ?? DEFAULT_SPACE, linked: input.linked, public: isPublic, changed: false, commit: null };
     let commit: string;
     try {
-      commit = (await writeAndCommit(ctx.root, CONFIG_PATH, next, { message: `github: ${input.linked ? "link" : "unlink"} ${known}`, author: authorOf(actor) })).commit;
+      commit = (await writeAndCommit(ctx.root, CONFIG_PATH, next, { message: `github: ${input.linked ? "link" : "unlink"} ${known}${isPublic ? " (public)" : ""}`, author: authorOf(actor) })).commit;
     } catch (e) {
       if (e instanceof ConflictError) throw new HttpError(409, "conflict while saving the configuration");
       throw e;
     }
-    return { repo: known, space: space ?? DEFAULT_SPACE, linked: input.linked, changed: true, commit };
+    return { repo: known, space: space ?? DEFAULT_SPACE, linked: input.linked, public: isPublic, changed: true, commit };
   };
   const result = await (configQueue = configQueue.then(run, run)) as Awaited<ReturnType<typeof run>>;
+  const publics = await getPublicRepos(ctx);
+  const wasPublic = publics.some((r) => r.toLowerCase() === known.toLowerCase());
+  if (isPublic && !wasPublic) await setPublicRepos(ctx, [...publics, known]);
   if (result.changed) {
     // The config cache follows the file's modification time, so the next read already sees the change.
-    if ((await ctx.getConfig()).vaultPush) await pushToOrigin(ctx.root, "HEAD").catch((e: unknown) => ctx.log({ msg: "push failed", error: String(e) }));
-    await audit(ctx, actor, input.linked ? "github.repo.link" : "github.repo.unlink", known, { space: result.space }, result.commit);
-    if (input.linked) await ctx.jobs.enqueue("github.resync", { repo: known });
+    const config = await ctx.getConfig();
+    if (config.vaultPush) await pushToOrigin(ctx.root, "HEAD").catch((e: unknown) => ctx.log({ msg: "push failed", error: String(e) }));
+    await audit(ctx, actor, input.linked ? "github.repo.link" : "github.repo.unlink", known, { space: result.space, ...(isPublic ? { public: true } : {}) }, result.commit);
+    // Linked nowhere any more: no reason to keep reading it publicly.
+    const left = [...config.repos, ...config.spaces.flatMap((s) => s.repos)].some((r) => r.toLowerCase() === known.toLowerCase());
+    if (!input.linked && !left && wasPublic) await setPublicRepos(ctx, publics.filter((r) => r.toLowerCase() !== known.toLowerCase()));
   }
+  if (input.linked && (result.changed || (isPublic && !wasPublic))) await ctx.jobs.enqueue("github.resync", { repo: known });
   return result;
 }

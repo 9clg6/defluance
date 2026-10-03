@@ -61,6 +61,11 @@ export class GithubClient {
     });
   }
 
+  /** Unauthenticated GET, for public repositories: no App, no installation, nothing of the user's. */
+  publicGet(path: string): Promise<Response> {
+    return this.f(`${this.api}${path}`, { headers: { accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "user-agent": "defluance" } });
+  }
+
   private async json<T>(res: Response, what: string): Promise<T> {
     if (!res.ok) throw new Error(`GitHub ${what}: ${res.status} ${(await res.text()).slice(0, 200)}`);
     return (await res.json()) as T;

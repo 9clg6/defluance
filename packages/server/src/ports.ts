@@ -8,6 +8,10 @@ export interface GithubPort {
   handlers?(): Record<string, Handler>;
   /** `owner/repo` list the App is installed on. */
   repos(): Promise<string[]>;
+  /** Check a repository through GitHub's public API, without the App. Returns its canonical `owner/name`; throws an HttpError. */
+  validatePublic?(repo: string): Promise<string>;
+  /** Re-read every linked public repository, one at a time, within the unauthenticated rate limit. */
+  refreshPublic?(): Promise<void>;
   createIssue(repo: string, input: { title: string; body: string; labels?: string[] }): Promise<{ key: string; number: number; url: string }>;
   /** Raw webhook delivery. Verifies the signature itself. */
   handleWebhook(input: { event: string; delivery: string | null; signature: string | null; body: string }): Promise<{ status: number; message: string }>;

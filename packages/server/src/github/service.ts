@@ -8,6 +8,7 @@ import * as svc from "../services/index.js";
 import { PERMS } from "../system.js";
 import { GithubClient, toIssue, type GhIssue } from "./client.js";
 import { MockGithub, loadMockNodes } from "./mock.js";
+import { PublicGithub, getPublicRepos, type PublicSyncResult } from "./public.js";
 
 /** Verify `X-Hub-Signature-256`: HMAC SHA-256 of the raw body, constant-time comparison. */
 export function verifySignature(secret: string, body: string, header: string | null): boolean {
@@ -43,11 +44,41 @@ function toNode(repo: string, i: GhIssue, files: string[]): GhNode {
 }
 
 export class GithubService implements GithubPort {
+  private readonly pub: PublicGithub;
+
   constructor(
     private readonly ctx: Ctx,
     private readonly client: GithubClient,
     private readonly webhookSecret: string,
-  ) {}
+  ) {
+    this.pub = new PublicGithub(ctx, client);
+  }
+
+  validatePublic(repo: string): Promise<string> {
+    return this.pub.validate(repo);
+  }
+
+  /** Linked repositories read without the App. A repository the App can see is never one of them: the installed path wins. */
+  private async publicOnly(): Promise<string[]> {
+    const installed = (await this.repos().catch(() => [] as string[])).map((r) => r.toLowerCase());
+    const config = await this.ctx.getConfig();
+    const linked = [...config.repos, ...config.spaces.flatMap((s) => s.repos)].map((r) => r.toLowerCase());
+    return (await getPublicRepos(this.ctx)).filter((r) => linked.includes(r.toLowerCase()) && !installed.includes(r.toLowerCase()));
+  }
+
+  private async syncPublic(repo: string): Promise<PublicSyncResult> {
+    const r = await this.pub.sync(repo);
+    if (r.synced || r.partial) await svc.audit(this.ctx, botActor, "github.public.sync", repo, { ...r });
+    if (r.partial) this.ctx.log({ msg: "public GitHub sync incomplete", repo, rateLimitedUntil: r.rateLimitedUntil });
+    return r;
+  }
+
+  /** Sync every linked public repository, one at a time. A failure on one does not stop the others. */
+  async refreshPublic(): Promise<void> {
+    for (const repo of await this.publicOnly()) {
+      await this.syncPublic(repo).catch((e: unknown) => this.ctx.log({ msg: "public GitHub sync failed", repo, error: e instanceof Error ? e.message : String(e) }));
+    }
+  }
 
   async repos(): Promise<string[]> {
     const cached = await this.ctx.store.getMeta("gh_repos");
@@ -169,8 +200,11 @@ export class GithubService implements GithubPort {
   /** Re-read issues and pull requests changed since the last sync, for every repository the vault uses. */
   async resync(only?: string): Promise<{ issues: number; pulls: number }> {
     const config = await this.ctx.getConfig();
+    const publics = await this.publicOnly();
+    const isPublic = (r: string) => publics.some((p) => p.toLowerCase() === r.toLowerCase());
+    if (only && isPublic(only)) return this.syncPublic(only);
     // One repository (just linked): everything it has, and the global "since" marker stays untouched.
-    const repos = only ? [only] : [...new Set([...config.repos, ...config.spaces.flatMap((s) => s.repos)])];
+    const repos = only ? [only] : [...new Set([...config.repos, ...config.spaces.flatMap((s) => s.repos)])].filter((r) => !isPublic(r));
     const since = only ? undefined : (await this.ctx.store.getMeta("gh_last_sync")) || undefined;
     const startedAt = this.ctx.now().toISOString();
     let issues = 0;
@@ -184,7 +218,14 @@ export class GithubService implements GithubPort {
         else issues++;
       }
     }
-    if (!only) await this.ctx.store.setMeta("gh_last_sync", startedAt);
+    if (!only) {
+      await this.ctx.store.setMeta("gh_last_sync", startedAt);
+      for (const repo of publics) {
+        const r = await this.syncPublic(repo).catch((e: unknown) => (this.ctx.log({ msg: "public GitHub sync failed", repo, error: String(e) }), null));
+        issues += r?.issues ?? 0;
+        pulls += r?.pulls ?? 0;
+      }
+    }
     await this.ctx.store.bump();
     return { issues, pulls };
   }

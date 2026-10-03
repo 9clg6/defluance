@@ -40,6 +40,11 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   await indexNow(ctx);
   ctx.jobs.start(jobHandlers(ctx));
   const { app } = createApp(ctx);
+  // Linked public repositories have no webhooks: read them again every 15 minutes, now once at startup.
+  const refresh = () => void ctx.github?.refreshPublic?.().catch((e: unknown) => ctx.log({ msg: "public GitHub refresh failed", error: String(e) }));
+  refresh();
+  const refresher = ctx.github?.refreshPublic ? setInterval(refresh, 15 * 60_000) : null;
+  refresher?.unref();
 
   const requested = opts.port ?? 4000;
   const host = opts.host ?? "127.0.0.1";
@@ -57,6 +62,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     url: `http://${host === "0.0.0.0" ? "localhost" : host}:${port}`,
     bootstrapToken,
     async close() {
+      if (refresher) clearInterval(refresher);
       ctx.jobs.stop();
       await ctx.collab.close(); // open WebSockets would keep the HTTP server from closing
       await new Promise<void>((r) => server.close(() => r()));

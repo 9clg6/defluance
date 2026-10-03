@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { GhNode, Handler } from "@defluance/indexer";
 import type { Ctx } from "../context.js";
+import { HttpError } from "../errors.js";
 import type { GithubPort } from "../ports.js";
 
 /** Six plausible objects for `acme/app`, used when `DFL_GITHUB_MOCK_FILE` is not set. */
@@ -64,6 +65,13 @@ export class MockGithub implements GithubPort {
   async repos(): Promise<string[]> {
     const config = await this.ctx.getConfig();
     return [...new Set([...this.nodes.map((n) => n.key.split("#")[0] as string), ...config.repos, ...config.spaces.flatMap((s) => s.repos)])].sort();
+  }
+
+  /** A repository is "public" for the demo when it has seeded objects or is already known. */
+  async validatePublic(repo: string): Promise<string> {
+    const known = (await this.repos()).find((r) => r.toLowerCase() === repo.toLowerCase());
+    if (!known) throw new HttpError(422, "repository not found or private");
+    return known;
   }
 
   private nextNumber(repo: string): number {

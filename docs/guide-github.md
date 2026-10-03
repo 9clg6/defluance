@@ -67,6 +67,26 @@ curl -X PUT $URL/api/v1/github/repos -H "authorization: Bearer $TOKEN" -H "conte
 
 `space` is optional. The repository must be one the App can see (422 otherwise), and the answer is 503 when GitHub is not configured. People only see the issues and pull requests of repositories linked to spaces they can read.
 
+### Link a public repository without installing the App
+
+When you cannot install the App on a repository (it belongs to an organisation you do not own), you can still read its issues and pull requests if it is public. Link it with `public: true`:
+
+```bash
+curl -X PUT $URL/api/v1/github/repos -H "authorization: Bearer $TOKEN" -H "content-type: application/json" \
+  -d '{"repo": "linagora/twake-on-matrix", "space": "product", "linked": true, "public": true}'
+```
+
+The server asks GitHub's public API, with no credentials at all, whether the repository exists and is public (422 if it is missing or private, 503 with the reset time if GitHub is rate-limiting the server). It then links it like any other repository (commit `github: link linagora/twake-on-matrix (public)`) and syncs it. The answer carries `public: true`. The App must still be configured on the server (503 otherwise), but it does not need to be installed on that repository. If the App can see the repository, the installed path is used and `public` is `false`.
+
+What to expect:
+
+- **Read-only.** You can read, search and mention its issues and pull requests, but not open issues, open pull requests or comment on it.
+- **60 requests per hour.** GitHub gives anonymous callers 60 requests per hour per IP address, shared by every public repository. A sync pages through 100 items at a time, keeps 5 requests in reserve, and when the budget is spent it stops, keeps what it fetched, and continues after GitHub's reset time. The first sync reads at most the 300 most recent issues and the 300 most recent pull requests.
+- **Refreshed every 15 minutes.** There are no webhooks for these repositories, so the server re-reads each linked public repository, one at a time, every 15 minutes while it runs, and at startup. **Resync now** does the same.
+- **No file-based impact analysis.** Reading the files of a pull request costs one request each, so public repositories have none: "specs touched by this pull request" does not work for them.
+
+People only see these items in spaces they can read, exactly like installed repositories. `GET /api/v1/github/status` lists them in `publicRepos`, with the last sync of each in `publicSync` (`partial`, `rateLimitedUntil`). To stop, **Unlink** the repository (or `linked: false` with the same request): it leaves the configuration and the 15 minute refresh.
+
 ## Linking
 
 In a note, write `[[gh:acme/app#12|tracked_by]]` (or use Open GitHub issue). To tie a pull request to a component, list the paths it owns:
