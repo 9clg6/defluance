@@ -244,9 +244,15 @@ export class SystemStore {
     eq("actor_name", f.actor);
     eq("action", f.action);
     eq("target", f.target);
-    if (f.from) (where.push("at >= ?"), params.push(f.from));
-    if (f.to) (where.push("at <= ?"), params.push(f.to));
-    if (f.before) (where.push("at < ?"), params.push(f.before));
+    const bound = (sql: string, v: string | undefined) => {
+      if (v) {
+        where.push(sql);
+        params.push(v);
+      }
+    };
+    bound("at >= ?", f.from);
+    bound("at <= ?", f.to);
+    bound("at < ?", f.before);
     params.push(Math.min(f.limit ?? 100, 500));
     const rows = await this.db.all<Row>(`SELECT * FROM audit_log ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY at DESC, id DESC LIMIT ?`, params);
     return rows.map((r) => ({

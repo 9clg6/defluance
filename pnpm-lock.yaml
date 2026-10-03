@@ -7,6 +7,13 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.32.0
+        version: 1.32.0(zod@4.6.5)
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -59,12 +66,27 @@ importers:
 
   packages/cli:
     dependencies:
+      '@defluance/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@defluance/indexer':
+        specifier: workspace:*
+        version: link:../indexer
+      '@defluance/server':
+        specifier: workspace:*
+        version: link:../server
       '@defluance/shared':
         specifier: workspace:*
         version: link:../shared
       '@defluance/vault-core':
         specifier: workspace:*
         version: link:../vault-core
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.32.0
+        version: 1.32.0(zod@4.6.5)
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
 
   packages/indexer:
     dependencies:

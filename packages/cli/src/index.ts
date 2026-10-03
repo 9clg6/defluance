@@ -17,10 +17,8 @@ import {
 } from "@defluance/vault-core";
 import { existsSync } from "node:fs";
 
-export interface IO {
-  out(line: string): void;
-  err(line: string): void;
-}
+import type { IO } from "./commands/runtime.js";
+export type { IO };
 
 const USAGE = `defluance <command>
 
@@ -28,6 +26,17 @@ const USAGE = `defluance <command>
   validate [dir]                    check schema, links and orphans; exit 1 on errors
   new <type> <title> [--dir d] [--owner o] [--vault v]
                                     create a note from its template
+  index [dir] [--rebuild]           index the vault (full text, embeddings, links)
+  query <text> [--vault v] [--type t] [--status s] [--limit n]
+  serve [dir] [--port 4000] [--host 127.0.0.1] [--open]
+                                    web UI, REST API and MCP endpoint
+  mcp [dir]                         MCP server on stdio, for Claude Code and other agents
+  token create <name> [--scopes read,write] [--spaces a,b] [--expires days]
+  token list | token revoke <id>
+  eval <questions.yaml> [--vault v] answer a question set from the vault, check citations
+  resync-github [dir]               re-read issues and pull requests from GitHub
+
+Environment: DFL_EMBED (hash, ollama:<model>, openai:<model>), DFL_LLM (anthropic:<model>, ...), DFL_DATABASE_URL.
 `;
 
 async function exists(path: string): Promise<boolean> {
@@ -123,6 +132,17 @@ export async function run(argv: string[], io: IO): Promise<number> {
         owner: { type: "string" },
         vault: { type: "string", default: "." },
         help: { type: "boolean", short: "h" },
+        port: { type: "string" },
+        host: { type: "string" },
+        ui: { type: "string" },
+        open: { type: "boolean" },
+        rebuild: { type: "boolean" },
+        scopes: { type: "string" },
+        spaces: { type: "string" },
+        expires: { type: "string" },
+        type: { type: "string" },
+        status: { type: "string" },
+        limit: { type: "string" },
       },
     });
     const [cmd, ...rest] = positionals;
@@ -144,6 +164,28 @@ export async function run(argv: string[], io: IO): Promise<number> {
         const owner = values.owner ?? (process.env["DEFLUANCE_OWNER"] || gitUser() || process.env["USER"] || "unknown");
         return await newNote(type, title.join(" "), { vault: values.vault, dir: values.dir, owner }, io);
       }
+      case "index":
+        return await (await import("./commands/data.js")).indexCommand(rest[0] ?? values.vault, !!values.rebuild, io);
+      case "query":
+        if (rest.length === 0) {
+          io.err("usage: defluance query <text>");
+          return 2;
+        }
+        return await (await import("./commands/data.js")).queryCommand(values.vault, rest.join(" "), { type: values.type, status: values.status, limit: values.limit ? Number(values.limit) : undefined }, io);
+      case "serve":
+        return await (await import("./commands/serve.js")).serve(rest[0] ?? values.vault, { ...(values.port ? { port: Number(values.port) } : {}), ...(values.host ? { host: values.host } : {}), ui: values.ui, open: !!values.open }, io);
+      case "mcp":
+        return await (await import("./commands/mcp.js")).mcpStdio(rest[0] ?? values.vault);
+      case "token":
+        return await (await import("./commands/data.js")).tokenCommand(values.vault, rest, { scopes: values.scopes, spaces: values.spaces, expires: values.expires ? Number(values.expires) : undefined }, io);
+      case "eval":
+        if (!rest[0]) {
+          io.err("usage: defluance eval <questions.yaml>");
+          return 2;
+        }
+        return await (await import("./commands/data.js")).evalCommand(values.vault, rest[0], io);
+      case "resync-github":
+        return await (await import("./commands/data.js")).resyncGithub(rest[0] ?? values.vault, io);
       default:
         io.err(`unknown command "${cmd}"\n${USAGE}`);
         return 2;

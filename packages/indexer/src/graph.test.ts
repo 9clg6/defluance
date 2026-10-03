@@ -1,3 +1,4 @@
+import { defaultConfig } from "@defluance/vault-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { impact, lint, neighbors, path } from "./graph.js";
 import { indexVault } from "./indexer.js";
@@ -20,7 +21,7 @@ const files = {
 describe.each(dialects)("graph (%s)", (dialect) => {
   let store: IndexStore;
   let cleanup: () => Promise<void>;
-  const cfg = { spaces: [{ name: "secret", path: "secret", repos: [] }], repos: [], agentWriteMode: "branch" as const };
+  const cfg = { ...defaultConfig, spaces: [{ name: "secret", path: "secret", repos: [] }] };
 
   beforeAll(async () => {
     store = await openTestStore(dialect);

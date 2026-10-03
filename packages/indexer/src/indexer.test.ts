@@ -1,3 +1,4 @@
+import { defaultConfig } from "@defluance/vault-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { hashEmbedder, type Embedder } from "@defluance/shared";
 import { indexVault } from "./indexer.js";
@@ -120,7 +121,7 @@ describe.each(dialects)("indexVault (%s)", (dialect) => {
 
   it("sets spaces from config", async () => {
     const v = await vault({ "produit/a.md": note("note", "draft", "x"), "b.md": note("note", "draft", "y") });
-    await indexVault(store, { root: v.root, config: { spaces: [{ name: "produit", path: "produit", repos: [] }], repos: [], agentWriteMode: "branch" } });
+    await indexVault(store, { root: v.root, config: { ...defaultConfig, spaces: [{ name: "produit", path: "produit", repos: [] }] } });
     expect((await store.getNote("produit/a"))?.space).toBe("produit");
     expect((await store.getNote("b"))?.space).toBe("default");
   });

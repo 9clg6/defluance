@@ -1,3 +1,4 @@
+import { defaultConfig } from "@defluance/vault-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hashEmbedder } from "@defluance/shared";
 import { indexVault } from "./indexer.js";
@@ -22,7 +23,7 @@ describe.each(dialects)("search (%s)", (dialect) => {
     await indexVault(store, {
       root: v.root,
       embedder,
-      config: { spaces: [{ name: "produit", path: "produit", repos: [] }], repos: [], agentWriteMode: "branch" },
+      config: { ...defaultConfig, spaces: [{ name: "produit", path: "produit", repos: [] }] },
     });
   });
   afterAll(async () => {

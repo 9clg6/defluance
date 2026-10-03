@@ -83,12 +83,7 @@ function cached<T>(path: string, load: () => Promise<T>, fallback: () => T): () 
   let at = -1;
   let value: T | undefined;
   return async () => {
-    let m = 0;
-    try {
-      m = (await stat(path)).mtimeMs;
-    } catch {
-      m = 0;
-    }
+    const m = await stat(path).then((s) => s.mtimeMs, () => 0);
     if (value === undefined || m !== at) {
       value = m === 0 ? fallback() : await load();
       at = m;

@@ -20,7 +20,6 @@ async function connect(token: string): Promise<Client> {
   return client;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const data = (r: any) => JSON.parse((r.content as { text: string }[])[0]?.text ?? "null");
 
 describe("MCP server", () => {
