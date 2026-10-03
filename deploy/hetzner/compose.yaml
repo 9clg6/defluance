@@ -1,0 +1,30 @@
+# Defluance with automatic HTTPS, next to whatever else runs on the host. Started by deploy.sh.
+# SQLite (the default), notes in ${VAULT_PATH}. Only Caddy publishes ports (80, 443).
+name: defluance
+services:
+  defluance:
+    build: .
+    image: defluance:prod
+    restart: unless-stopped
+    mem_limit: 768m
+    env_file: .env
+    volumes:
+      - ${VAULT_PATH:-/opt/defluance/vault}:/vault
+      - data:/data
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [defluance]
+    mem_limit: 128m
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+volumes:
+  data:
+  caddy-data:

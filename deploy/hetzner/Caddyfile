@@ -1,0 +1,5 @@
+# HTTPS in front of Defluance (docker compose --profile tls up -d). Certificates are fetched automatically.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy defluance:4000
+}

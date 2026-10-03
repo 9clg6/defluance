@@ -22,6 +22,17 @@ Open `http://localhost:4000` and sign in with `DFL_ADMIN_TOKEN`. The notes stay 
 
 For HTTPS on your own domain, set `DOMAIN` and `DFL_PUBLIC_URL=https://your.domain`, then `docker compose --profile tls up -d`. Caddy gets the certificate by itself.
 
+## One command on a small server
+
+For a VPS you can reach over SSH, with Docker installed (it shares the machine with whatever already runs there: its own folder, its own containers, memory capped):
+
+```bash
+deploy/hetzner/deploy.sh root@203.0.113.7            # https://203-0-113-7.sslip.io
+deploy/hetzner/deploy.sh root@203.0.113.7 notes.example.com
+```
+
+It builds the bundle here, copies it to `/opt/defluance`, creates the secrets in `/opt/defluance/.env` on the first run, starts Defluance (SQLite) and Caddy (automatic HTTPS, WebSocket for live editing) and commits the vault's first state. Run it again to upgrade: the vault, the data and the secrets stay. Read the admin token with `ssh root@203.0.113.7 grep ADMIN_TOKEN /opt/defluance/.env`. Ports 80 and 443 must be reachable. Back up `/opt/defluance/vault` (a git repository: set `vault_push` to send every commit to GitHub).
+
 ## Without Docker
 
 ```bash
