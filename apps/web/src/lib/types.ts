@@ -57,6 +57,27 @@ export interface KeyringEntry {
   created: string;
 }
 
+export interface DraftFile {
+  path: string;
+  id: string | null;
+  status: "A" | "M" | "D" | string;
+  private: boolean;
+}
+
+/** What an agent wrote on a branch, waiting for a person. */
+export interface Draft {
+  branch: string;
+  agent: string;
+  files: DraftFile[];
+  commits: number;
+  last: { date: string; author: string; message: string };
+  mergeable: boolean | null;
+}
+
+export interface DraftDetail extends Omit<Draft, "files"> {
+  files: (DraftFile & { patch: string })[];
+}
+
 export interface KeysResponse {
   mine: KeyStatus[];
   keyring: KeyringEntry[];

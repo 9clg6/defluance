@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Languages, LogOut, Network, Plus, Search, Settings, ShieldCheck } from "lucide-react";
+import { FileText, GitPullRequestDraft, Languages, LogOut, Network, Plus, Search, Settings, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -48,6 +48,7 @@ export function Shell({ children }: { children: ReactNode }) {
     { href: "/", label: t("nav.home"), icon: FileText, show: true },
     { href: "/search", label: t("search.page.title"), icon: Search, show: true },
     { href: "/graph", label: t("nav.graph"), icon: Network, show: true },
+    { href: "/drafts", label: t("nav.drafts"), icon: GitPullRequestDraft, show: me.spaces.some((s) => s.perms.includes("write")) },
     { href: "/audit", label: t("nav.audit"), icon: ShieldCheck, show: me.spaces.some((s) => s.perms.includes("admin")) },
     { href: "/settings", label: t("nav.settings"), icon: Settings, show: true },
   ].filter((n) => n.show);

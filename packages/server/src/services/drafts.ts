@@ -117,7 +117,7 @@ async function writable(ctx: Ctx, actor: Actor, draft: Draft) {
 }
 
 export async function mergeDraft(ctx: Ctx, actor: Actor, branch: string) {
-  const { draft, base } = await one(ctx, actor, branch);
+  const { draft } = await one(ctx, actor, branch);
   await writable(ctx, actor, draft);
   // Merging a private note without being able to read it would be approving blind.
   for (const f of draft.files.filter((x) => x.private)) await openPrivate(ctx, actor, await readAt(ctx.root, f.path, branch));
