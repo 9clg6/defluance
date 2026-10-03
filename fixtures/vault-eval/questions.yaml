@@ -1,0 +1,32 @@
+# RAG evaluation set: `expect` lists notes of which at least one must be cited, `refuse` marks questions the vault cannot answer.
+questions:
+  - { q: "What happens after five failed login attempts?", expect: [auth-login] }
+  - { q: "Can users sign in with Google?", expect: [auth-login] }
+  - { q: "How long is a password reset link valid?", expect: [password-reset] }
+  - { q: "Are sessions closed after a password reset?", expect: [password-reset] }
+  - { q: "How long do access tokens last before they expire?", expect: [sessions] }
+  - { q: "Where are the session tokens stored?", expect: [sessions] }
+  - { q: "What can an editor do in a workspace?", expect: [roles-permissions] }
+  - { q: "Who manages API tokens and billing?", expect: [roles-permissions] }
+  - { q: "When are invoices generated?", expect: [billing-invoices] }
+  - { q: "When does an unpaid invoice trigger a reminder?", expect: [billing-invoices] }
+  - { q: "How is value added tax computed?", expect: [tax-rates] }
+  - { q: "Do European customers with a VAT number pay tax?", expect: [tax-rates] }
+  - { q: "How many days do customers have to ask for a refund?", expect: [refunds] }
+  - { q: "Are partial refunds allowed?", expect: [refunds] }
+  - { q: "What does the daily digest contain?", expect: [notifications] }
+  - { q: "Can a user disable notification categories?", expect: [notifications] }
+  - { q: "How are webhook requests signed?", expect: [webhooks] }
+  - { q: "How many times are failed webhook deliveries retried?", expect: [webhooks] }
+  - { q: "What is the API rate limit per token?", expect: [rate-limiting] }
+  - { q: "Which status does the server return beyond the limit?", expect: [rate-limiting] }
+  - { q: "How long do deleted pages stay in the trash?", expect: [data-retention] }
+  - { q: "Who can read the audit log?", expect: [audit-log] }
+  - { q: "Can search results be filtered by author?", expect: [search-feature] }
+  - { q: "What does the onboarding checklist unlock?", expect: [onboarding] }
+  - { q: "Who won the football world cup in 2018?", refuse: true }
+  - { q: "What is the recipe for carbonara?", refuse: true }
+  - { q: "How tall is Mount Everest?", refuse: true }
+  - { q: "Quelle est la météo à Paris demain ?", refuse: true }
+  - { q: "What is the favorite color of the chief executive?", refuse: true }
+  - { q: "Which cloud provider hosts the mobile client?", refuse: true }

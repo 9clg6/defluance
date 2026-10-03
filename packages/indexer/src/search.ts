@@ -1,4 +1,4 @@
-import { cosine, tokenize, type Embedder } from "@defluance/shared";
+import { cosine, queryTokens, type Embedder } from "@defluance/shared";
 import type { Row } from "./db.js";
 import { noteWhere, toNote, type IndexStore, type NoteFilter } from "./store.js";
 
@@ -12,6 +12,8 @@ export interface SearchHit {
   note: { id: string; title: string; type: string | null; status: string | null; space: string; tags: string[] };
   chunk: { id: string; heading: string; snippet: string; commit: string | null };
   score: number;
+  /** Best cosine similarity of the note's matching chunk, when the vector index matched it. */
+  vector?: number;
   sources: ("fts" | "vector")[];
 }
 
@@ -58,7 +60,7 @@ async function ftsSearch(store: IndexStore, tokens: string[], f: NoteFilter): Pr
   )) as unknown as ChunkRow[];
 }
 
-async function vectorSearch(store: IndexStore, embedder: Embedder, query: string, f: NoteFilter): Promise<string[]> {
+async function vectorSearch(store: IndexStore, embedder: Embedder, query: string, f: NoteFilter): Promise<{ id: string; s: number }[]> {
   const items = await store.vectors();
   if (!items.length) return [];
   const filtered = Object.values(f).some((v) => v !== undefined);
@@ -75,17 +77,18 @@ async function vectorSearch(store: IndexStore, embedder: Embedder, query: string
     scored.push({ id: it.chunkId, s: cosine(q, it.vec) });
   }
   scored.sort((a, b) => b.s - a.s);
-  return scored.filter((x) => x.s > 0).slice(0, PER_SOURCE).map((x) => x.id);
+  return scored.filter((x) => x.s > 0).slice(0, PER_SOURCE);
 }
 
 /** Hybrid search: BM25 + cosine fused with reciprocal rank fusion, best chunk per note. */
 export async function search(store: IndexStore, query: string, opts: SearchOptions = {}): Promise<SearchHit[]> {
-  const tokens = tokenize(query);
+  const tokens = queryTokens(query);
   if (!tokens.length) return [];
   const filter: NoteFilter = { space: opts.space, spaces: opts.spaces, type: opts.type, status: opts.status, tag: opts.tag, owner: opts.owner };
 
   const fts = await ftsSearch(store, tokens, filter);
   const vec = opts.embedder ? await vectorSearch(store, opts.embedder, query, filter) : [];
+  const cos = new Map(vec.map((v) => [v.id, v.s]));
 
   const score = new Map<string, number>();
   const sources = new Map<string, Set<"fts" | "vector">>();
@@ -94,7 +97,7 @@ export async function search(store: IndexStore, query: string, opts: SearchOptio
     (sources.get(id) ?? sources.set(id, new Set()).get(id))?.add(src);
   };
   fts.forEach((c, i) => bump(c.id, i, "fts"));
-  vec.forEach((id, i) => bump(id, i, "vector"));
+  vec.forEach((v, i) => bump(v.id, i, "vector"));
 
   const ranked = [...score.entries()].sort((a, b) => b[1] - a[1]);
   const chunks = new Map<string, ChunkRow>(fts.map((c) => [c.id, c]));
@@ -108,12 +111,12 @@ export async function search(store: IndexStore, query: string, opts: SearchOptio
   }
 
   const seen = new Set<string>();
-  const picked: { chunk: ChunkRow; score: number; src: ("fts" | "vector")[] }[] = [];
+  const picked: { chunk: ChunkRow; score: number; src: ("fts" | "vector")[]; cos: number | undefined }[] = [];
   for (const [id, s] of ranked) {
     const chunk = chunks.get(id);
     if (!chunk || seen.has(chunk.note_id)) continue;
     seen.add(chunk.note_id);
-    picked.push({ chunk, score: s, src: [...(sources.get(id) ?? [])] });
+    picked.push({ chunk, score: s, src: [...(sources.get(id) ?? [])], cos: cos.get(id) });
     if (picked.length >= (opts.limit ?? 20)) break;
   }
   if (!picked.length) return [];
@@ -130,6 +133,7 @@ export async function search(store: IndexStore, query: string, opts: SearchOptio
         note: { id: n.id, title: n.title, type: n.type, status: n.status, space: n.space, tags: n.tags },
         chunk: { id: p.chunk.id, heading: p.chunk.heading, snippet: snippet(p.chunk.content, tokens), commit: p.chunk.commit_sha },
         score: p.score,
+        ...(p.cos === undefined ? {} : { vector: p.cos }),
         sources: p.src,
       },
     ];

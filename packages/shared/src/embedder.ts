@@ -25,17 +25,31 @@ export function tokenize(text: string): string[] {
   return text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").match(/[\p{L}\p{N}]{2,}/gu) ?? [];
 }
 
+const STOPWORDS = new Set(
+  (
+    "a an and are as at be but by can could do does did for from has have how i if in into is it its of on or our so than that the their them then there these they this to was we were what when where which who why will with would you your " +
+    "au aux avec ce ces dans de des du elle en est et il ils je la le les leur lui ma mais me mes moi mon ne nos notre nous on ou par pas pour qu que qui sa se ses son sur ta te tes toi ton tu un une vos votre vous comment quel quelle quels quelles"
+  ).split(" "),
+);
+
+/** Tokens of a search query without stop words. Falls back to all tokens if nothing is left. */
+export function queryTokens(text: string): string[] {
+  const all = tokenize(text);
+  const kept = all.filter((t) => !STOPWORDS.has(t));
+  return kept.length ? kept : all;
+}
+
 /**
  * Offline embedder: signed feature hashing of word unigrams and bigrams.
  * Captures vocabulary overlap, not meaning. Use a real model (Ollama, OpenAI-compatible) for semantic search.
  */
-export function hashEmbedder(dim = 256): Embedder {
+export function hashEmbedder(dim = 512): Embedder {
   return {
     model: `hash-${dim}`,
     async embed(texts) {
       return texts.map((text) => {
         const v = new Float32Array(dim);
-        const words = tokenize(text);
+        const words = queryTokens(text);
         const add = (feature: string, w: number) => {
           const h = fnv(feature);
           v[h % dim] = (v[h % dim] as number) + ((h >>> 31) & 1 ? -w : w);
