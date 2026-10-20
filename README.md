@@ -1,25 +1,34 @@
 # Defluance
 
-Specs, decisions and issues as **one linked graph**, for your team and your AI agents.
+**Specs, decisions and issues as one linked graph, for your team and your AI agents.**
 
-Defluance reads a folder of Markdown notes (an Obsidian vault works as is), links them with typed relationships, keeps them in sync with GitHub, and exposes the same knowledge to people (web UI) and to AI agents (REST API and an MCP server). Every answer it gives cites the notes it came from.
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](LICENSE)
+![Node.js 22.13+](https://img.shields.io/badge/node-%E2%89%A522.13-339933?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 
-```bash
-npx defluance serve ./my-notes
-```
+Defluance turns a folder of Markdown notes (an Obsidian vault works as is) into a typed knowledge graph. People use it through a web UI; AI agents use the same knowledge through a REST API and an MCP server. Every answer cites the notes it came from.
 
-Open the address it prints. The first start prints a one-time sign-in link.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/ask-dark.png">
+  <img alt="Asking a question in Defluance: the answer cites the password reset, login and auth module notes it was built from" src="docs/images/ask-light.png">
+</picture>
 
-## What you get
+## Why
 
-| For | What |
-|-----|------|
-| Product and engineering | Functional specs, technical specs, decisions (ADR), components and glossary as notes, linked by `implements`, `depends_on`, `supersedes`, `tested_by`, `tracked_by`, `blocks`, `related` |
-| Everyone | Search by words, by meaning (any language) or with a language model in front, a graph view, history with diffs, an editor that commits, answers with citations |
-| Teams | Several people edit the same note at once and see each other, with nothing else to run ([live editing](docs/guide-live-editing.md)). Specs that must stay private are encrypted for the people you choose ([private notes](docs/guide-private-notes.md)) |
-| GitHub | Issues and pull requests are nodes of the graph. Open an issue from a spec. A merged pull request moves its specs from `approved` to `implemented`. See which specs a pull request touches |
-| AI agents | A [Model Context Protocol](https://modelcontextprotocol.io) server with 11 tools. Agents write drafts on a branch and cannot approve, every action is in the audit log |
-| Operators | One process, SQLite or Postgres, Docker image, Prometheus metrics, no lock-in: delete Defluance and your notes are still plain Markdown in git |
+Specs drift away from the code, decisions get lost in chat threads, and AI agents guess because they cannot see either. Defluance keeps all of it in plain Markdown under git, links it with typed relationships, and gives humans and agents one source of truth to read from and write to.
+
+## Features
+
+- **Ask your notes (RAG).** Full-text and semantic search with embeddings (local, Ollama or OpenAI), and LLM answers grounded in the matching passages, with numbered citations. "Research in depth" follows links for questions that span several specs.
+- **Typed knowledge graph.** Functional specs, technical specs, decisions (ADR), components and glossary entries, linked by `implements`, `depends_on`, `supersedes`, `tested_by`, `tracked_by`, `blocks` and `related`.
+- **Built for AI agents.** An MCP server with 11 tools. Agents such as Claude Code read the graph and write drafts on a branch; they cannot approve, and every action lands in the audit log.
+- **GitHub sync.** Issues and pull requests become graph nodes. Open an issue from a spec; a merged pull request moves its specs from `approved` to `implemented`.
+- **Team editing.** Several people edit the same note live. Private notes are encrypted for the people you choose.
+- **No lock-in.** One process, SQLite or Postgres, a Docker image and Prometheus metrics. Delete Defluance and your notes are still Markdown in git.
+
+![Graph view of a demo vault: specs, decisions and components linked by typed relationships](docs/images/graph-dark.png)
+
+## How it works
 
 ```mermaid
 flowchart LR
@@ -32,38 +41,33 @@ flowchart LR
 
 ## Quick start
 
-You need Node.js 22.13 or later and git.
+You need Node.js 22.13 or later, pnpm and git.
 
 ```bash
-npx defluance init ./my-notes          # schema, templates, git repository (skip for an existing vault)
-npx defluance new functional-spec "Password reset" --vault ./my-notes --owner you
-npx defluance validate ./my-notes      # schema, links, orphans. Exit code 1 on errors, so it fits CI
-npx defluance serve ./my-notes         # UI, API and MCP on http://127.0.0.1:4000
+git clone https://github.com/9clg6/defluance.git
+cd defluance
+pnpm install
+pnpm build
+pnpm demo        # a populated demo vault on http://127.0.0.1:4000
 ```
 
-Then:
+To run it on your own notes:
 
-- **Ask a question** on the home page. With no language model configured you get the matching passages with sources. Set `DFL_LLM` for written answers, and tick "Research in depth" for questions that span several specs.
-- **Search by meaning**: `npx defluance models install`, then `DFL_EMBED=local`. It runs on your machine. See [Search](docs/guide-search.md).
-- **Connect Claude Code**: Settings, API tokens, create a token, copy the command it shows. See [Agents and MCP](docs/guide-mcp.md).
-- **Connect GitHub**: Settings, GitHub walks you through it. See [GitHub connector](docs/guide-github.md).
-- **Deploy for a team**: [Deployment and operations](docs/guide-deploy.md) (Docker Compose with Postgres).
+```bash
+node packages/cli/dist/bin.js init ./my-notes       # schema, templates, git repository (skip for an existing vault)
+node packages/cli/dist/bin.js validate ./my-notes   # schema, links, orphans; exits 1 on errors, so it fits CI
+node packages/cli/dist/bin.js serve ./my-notes      # UI, API and MCP on http://127.0.0.1:4000
+```
 
-## Documentation
+The first start prints a one-time sign-in link. From there:
 
-The `docs/` folder is itself a Defluance vault, validated in CI.
+- **Search by meaning:** `defluance models install`, then start with `DFL_EMBED=local`. It runs on your machine. See [Search](docs/guide-search.md).
+- **Get written answers:** set `DFL_LLM` (for example `anthropic:claude-sonnet-5-5`).
+- **Connect Claude Code:** Settings, API tokens, create a token, copy the command it shows. See [Agents and MCP](docs/guide-mcp.md).
+- **Connect GitHub:** Settings, GitHub. See [GitHub connector](docs/guide-github.md).
+- **Deploy for a team:** Docker Compose with Postgres. See [Deployment and operations](docs/guide-deploy.md).
 
-- [Getting started](docs/guide-getting-started.md)
-- [Vault format](docs/vault-format.md): notes, frontmatter, typed links
-- [Search: words, meaning, smart, in depth](docs/guide-search.md)
-- [Agents and MCP](docs/guide-mcp.md)
-- [GitHub connector](docs/guide-github.md)
-- [Deployment and operations](docs/guide-deploy.md)
-- [REST API](docs/guide-api.md), also served as OpenAPI at `/api/v1/openapi.json`
-- [Security model](docs/guide-security.md)
-- Design: [product brief](docs/product-brief-defluance-2026-10-02.md), [PRD](docs/prd-defluance-2026-10-02.md), [architecture](docs/architecture-defluance-2026-10-02.md), [sprint plan](docs/sprint-plan-defluance-2026-10-02.md)
-
-## Configuration at a glance
+## Configuration
 
 | Variable | Purpose |
 |----------|---------|
@@ -74,27 +78,46 @@ The `docs/` folder is itself a Defluance vault, validated in CI.
 | `DFL_ADMINS`, `DFL_DEFAULT_ROLE` | GitHub logins that are admins, and the role everyone else gets (`reader`, `editor`) |
 | `GITHUB_*` | GitHub App and OAuth credentials, see [GitHub connector](docs/guide-github.md) |
 
-Everything else is in [Deployment and operations](docs/guide-deploy.md).
+See [`.env.example`](.env.example) and [Deployment and operations](docs/guide-deploy.md) for the rest.
 
-## License
+## Documentation
 
-Defluance is **source-available**, not open source. It is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE):
+The `docs/` folder is itself a Defluance vault, validated in CI.
 
-- Personal use, hobby projects, study and research are free.
-- Use inside a company or for profit, including internal team use, needs a paid commercial license: see [COMMERCIAL.md](COMMERCIAL.md).
-
-Contributions will need a contributor license agreement so the project can keep offering commercial licenses.
+- [Getting started](docs/guide-getting-started.md)
+- [Search: words, meaning, smart, in depth](docs/guide-search.md)
+- [Agents and MCP](docs/guide-mcp.md)
+- [GitHub connector](docs/guide-github.md)
+- [Editor](docs/guide-editor.md), [live editing](docs/guide-live-editing.md) and [private notes](docs/guide-private-notes.md)
+- [Deployment and operations](docs/guide-deploy.md)
+- [REST API](docs/guide-api.md), also served as OpenAPI at `/api/v1/openapi.json`
+- [Security model](docs/guide-security.md)
+- Design documents, in French: [vault format](docs/vault-format.md), [product brief](docs/product-brief-defluance-2026-10-02.md), [PRD](docs/prd-defluance-2026-10-02.md), [architecture](docs/architecture-defluance-2026-10-02.md)
 
 ## Development
 
+A pnpm and Turborepo monorepo in TypeScript.
+
+| Package | Role |
+|---------|------|
+| `packages/shared` | Shared types and helpers |
+| `packages/vault-core` | Vault format, frontmatter, git |
+| `packages/indexer` | SQLite and Postgres, search, graph, jobs |
+| `packages/ai` | Embedding and LLM providers, cited answers |
+| `packages/server` | REST API, MCP server, auth, GitHub |
+| `packages/cli` | The `defluance` command |
+| `apps/web` | Next.js web UI |
+
 ```bash
-pnpm install
-pnpm build            # all packages and the web UI
-pnpm test             # 200+ unit and integration tests
-pnpm --filter @defluance/web e2e   # browser tests with accessibility checks (needs Chrome)
-pnpm --filter @defluance/e2e test:e2e   # the same flows on Chromium, Firefox, WebKit and a phone, see apps/e2e
-pnpm bench            # 10,000-note performance benchmark against the PRD limits
-pnpm pack:cli --verify             # build the npm package and run it from a clean install
+pnpm test                                  # 200+ unit and integration tests
+pnpm --filter @defluance/web e2e           # browser tests with accessibility checks (needs Chrome)
+pnpm --filter @defluance/e2e test:e2e      # the same flows on Chromium, Firefox, WebKit and a phone
+pnpm bench                                 # 10,000-note performance benchmark
 ```
 
-Packages: `shared`, `vault-core` (format, git), `indexer` (SQLite and Postgres, search, graph, jobs), `ai` (providers, cited answers), `server` (REST, MCP, auth, GitHub), `cli`, and `apps/web` (Next.js with [ObsidianUI](https://www.obsidianui.dev/)).
+## License
+
+Defluance is **source-available**, not open source, under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- Personal use, hobby projects, study and research are free.
+- Use inside a company or for profit, including internal team use, needs a commercial license: see [COMMERCIAL.md](COMMERCIAL.md).
