@@ -19,3 +19,5 @@ packages/cli/bundle
 dist-npm
 .claude/worktrees/
 packages/server/.vitest/
+.vitest/
+*.tsbuildinfo
